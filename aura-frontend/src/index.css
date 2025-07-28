@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #ff69b4;
+  --primary-dark: #cc5490;
+  --accent: #ff1493;
+  --dark: #000000;
+  --light: #ffffff;
+  --background: #0a0a0a;
+}
+
+body {
+  @apply font-sans text-white bg-[var(--background)] overflow-x-hidden;
+  font-family: 'Open Sans', sans-serif;
+}

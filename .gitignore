@@ -1,0 +1,32 @@
+# Ignore Python virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# Ignore environment/system files
+.DS_Store
+*.pyd
+
+# Node modules (for frontend)
+node_modules/
+
+# .gitignore
+serviceAccountKey.json
+*.pyc
+*.env
+*.pem
+*.key
+__pycache__/
+
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Env & keys
+.env
+*.json
+
+# Virtual environment
+venv/
