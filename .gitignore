@@ -30,3 +30,53 @@ __pycache__/
 
 # Virtual environment
 venv/
+
+# =================================================
+# == Secret Files (Bahut Zaroori) ==
+# =================================================
+# API keys aur environment variables
+.env
+.env.*
+!/.env.example
+
+# Firebase service account key
+firebase-service-account.json
+
+
+# =================================================
+# == Backend (Python/Flask) ==
+# =================================================
+# Virtual environment
+venv/
+/venv
+
+# Python cache
+__pycache__/
+*.pyc
+
+
+# =================================================
+# == Frontend (Node/React) ==
+# =================================================
+# Dependencies
+node_modules/
+
+# Production build folder
+build/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# =================================================
+# == Editor/IDE Folders ==
+# =================================================
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

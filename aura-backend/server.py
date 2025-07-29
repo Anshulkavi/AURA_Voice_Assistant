@@ -449,546 +449,132 @@
 #     app.run(debug=False, port=5000)
 
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import pyttsx3
-import wikipedia
-import datetime
-import pywhatkit
-import webbrowser
-import threading
-import requests
+# -*- coding: utf-8 -*-
 import os
-import re
-import json
-import asyncio
-import aiohttp
-from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
-from typing import Dict, List, Optional, Tuple
+import io
+import base64
+from flask import Flask, request, jsonify, session
+from flask_cors import CORS
 from dotenv import load_dotenv
-import logging
+from PIL import Image
 
-# ========== Configuration ==========
+import google.generativeai as genai
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+
+# --- Initial Setup ---
 load_dotenv()
 
-# Logging setup
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Environment variables
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-TTS_RATE = int(os.getenv("TTS_RATE", "200"))
-TTS_VOLUME = float(os.getenv("TTS_VOLUME", "0.8"))
-
-# Flask app setup
 app = Flask(__name__)
-CORS(app, origins=["*"])
+app.secret_key = os.urandom(24) # Session ke liye zaroori hai
+CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liye
 
-# Thread pool for async operations
-executor = ThreadPoolExecutor(max_workers=4)
+# --- Services Initialize Karna ---
 
-# ========== Enhanced TTS Engine ==========
-class TTSEngine:
-    def __init__(self):
-        self.engine = pyttsx3.init()
-        self.speech_lock = threading.Lock()
-        self.configure_tts()
+# Firebase Admin SDK
+try:
+    cred = credentials.Certificate(os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH"))
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("✅ Firebase Admin SDK successfully initialized.")
+except Exception as e:
+    print(f"❌ Firebase initialization failed: {e}")
+    db = None
+
+# Google Gemini AI
+try:
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    model = genai.GenerativeModel('gemini-2.0-flash') # Latest model use karein
+    print("✅ Gemini AI model successfully configured.")
+except Exception as e:
+    print(f"❌ Gemini AI configuration failed: {e}")
+    model = None
+
+# --- Helper Function: User Management ---
+def get_user_session():
+    """Har user ko ek unique ID deta hai (session ka use karke)"""
+    if 'uid' not in session:
+        user = auth.create_user() # Firebase me naya anonymous user banata hai
+        session['uid'] = user.uid
+        print(f"New user session created: {session['uid']}")
+    return session['uid']
+
+# --- API Endpoints ---
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    """Chat requests (text aur image ke saath) handle karta hai"""
+    if not db or not model:
+        return jsonify({"error": "Backend services not running."}), 500
+
+    uid = get_user_session()
+    chat_ref = db.collection('chats').document(uid)
     
-    def configure_tts(self):
-        """Configure TTS engine properties"""
+    data = request.json
+    user_prompt = data.get('prompt', '')
+    image_base64 = data.get('image_base64') # Frontend se base64 image string
+
+    # --- Content for Gemini ---
+    gemini_content = []
+    if user_prompt:
+        gemini_content.append(user_prompt)
+    
+    if image_base64:
         try:
-            voices = self.engine.getProperty('voices')
-            if voices:
-                # Prefer female voice if available
-                for voice in voices:
-                    if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
-                        self.engine.setProperty('voice', voice.id)
-                        break
-            
-            self.engine.setProperty('rate', TTS_RATE)
-            self.engine.setProperty('volume', TTS_VOLUME)
+            # Base64 string se image banata hai
+            image_data = base64.b64decode(image_base64)
+            img = Image.open(io.BytesIO(image_data))
+            gemini_content.append(img)
+            print("Image successfully processed for Gemini.")
         except Exception as e:
-            logger.warning(f"TTS configuration warning: {e}")
-    
-    def speak_text(self, text: str, priority: bool = False):
-        """Speak text with optional priority"""
-        def speak():
-            with self.speech_lock:
-                try:
-                    # Clean text for better speech
-                    clean_text = self.clean_text_for_speech(text)
-                    self.engine.say(clean_text)
-                    self.engine.runAndWait()
-                except Exception as e:
-                    logger.error(f"TTS error: {e}")
-        
-        thread = threading.Thread(target=speak, daemon=True)
-        thread.start()
-        
-        if priority:
-            thread.join(timeout=5)  # Wait max 5 seconds for priority speech
-    
-    def clean_text_for_speech(self, text: str) -> str:
-        """Clean text for better TTS pronunciation"""
-        # Remove markdown formatting
-        text = re.sub(r'[*_`#]', '', text)
-        # Remove URLs
-        text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', 'link', text)
-        # Replace common abbreviations
-        replacements = {
-            'AI': 'Artificial Intelligence',
-            'API': 'A P I',
-            'HTTP': 'H T T P',
-            'URL': 'U R L',
-            'HTML': 'H T M L',
-            'CSS': 'C S S',
-            'JS': 'JavaScript'
-        }
-        for abbr, full in replacements.items():
-            text = text.replace(abbr, full)
-        
-        return text[:500]  # Limit length for speech
+            print(f"Image processing error: {e}")
+            return jsonify({"error": "Invalid image format."}), 400
 
-# Initialize TTS engine
-tts = TTSEngine()
+    if not gemini_content:
+        return jsonify({"error": "Prompt or image is required."}), 400
 
-# ========== Enhanced Command Processing ==========
-class CommandProcessor:
-    def __init__(self):
-        self.command_patterns = {
-            'greeting': [r'\b(hello|hi|hey|good morning|good evening)\b'],
-            'time': [r'\b(time|what time)\b'],
-            'about': [r'\b(tell me about yourself|who are you|what are you)\b'],
-            'wikipedia': [r'\b(wikipedia|wiki)\b'],
-            'search': [r'\b(who is|tell me about|what is|explain)\b'],
-            'youtube': [r'\b(open youtube|youtube)\b'],
-            'play': [r'\b(play|music)\b'],
-            'weather': [r'\b(weather|temperature|forecast)\b'],
-            'maps': [r'\b(maps|directions|location)\b'],
-            'google': [r'\b(open google|google search)\b'],
-            'exit': [r'\b(stop|bye|exit|quit|goodbye)\b'],
-            'creator': [r'\b(creator|who made you|developer)\b'],
-            'code': [r'\b(code|programming|script|function|algorithm)\b'],
-            'calculate': [r'\b(calculate|math|compute|solve)\b'],
-            'news': [r'\b(news|latest news|headlines)\b'],
-            'joke': [r'\b(joke|funny|humor)\b'],
-            'help': [r'\b(help|commands|what can you do)\b']
-        }
-    
-    def classify_command(self, command: str) -> Tuple[str, str]:
-        """Classify command and extract relevant text"""
-        command_lower = command.lower()
-        
-        for category, patterns in self.command_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, command_lower):
-                    # Extract relevant text after removing command keywords
-                    extracted_text = self.extract_relevant_text(command_lower, pattern)
-                    return category, extracted_text
-        
-        return 'general', command
-    
-    def extract_relevant_text(self, command: str, pattern: str) -> str:
-        """Extract relevant text from command"""
-        # Remove the matched pattern and common words
-        cleaned = re.sub(pattern, '', command).strip()
-        cleaned = re.sub(r'\b(please|can you|could you|would you)\b', '', cleaned).strip()
-        return cleaned or command
-
-# Initialize command processor
-processor = CommandProcessor()
-
-# ========== Enhanced Gemini Integration ==========
-class GeminiClient:
-    def __init__(self):
-        self.api_key = GEMINI_API_KEY
-        self.model = GEMINI_MODEL
-        self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
-        self.session = requests.Session()
-        self.session.headers.update({"Content-Type": "application/json"})
-    
-    def get_response(self, command: str, context: str = "general") -> str:
-        """Get response from Gemini with context-aware prompts"""
-        prompt = self.build_context_prompt(command, context)
-        
-        payload = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": prompt}]
-            }],
-            "generationConfig": {
-                "temperature": 0.7,
-                "topK": 40,
-                "topP": 0.95,
-                "maxOutputTokens": 1024,
-            }
-        }
-        
-        try:
-            response = self.session.post(
-                f"{self.base_url}?key={self.api_key}",
-                json=payload,
-                timeout=10
-            )
-            response.raise_for_status()
-            
-            data = response.json()
-            full_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            
-            # Process response based on context
-            return self.process_response(full_text, context)
-            
-        except requests.exceptions.Timeout:
-            return "Sorry, the request timed out. Please try again."
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Gemini API error: {e}")
-            return "Sorry, I'm having trouble connecting to my AI brain right now."
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            return "An unexpected error occurred while processing your request."
-    
-    def build_context_prompt(self, command: str, context: str) -> str:
-        """Build context-aware prompts"""
-        base_persona = (
-            "You are AURA+, a helpful AI voice assistant created by students from Medicaps University. "
-            "You are knowledgeable, friendly, and concise. "
-        )
-        
-        context_prompts = {
-            # 'code': (
-            #     "You are an expert programming assistant. Provide clear, working code with brief explanations. "
-            #     "Format code properly and include comments where helpful. "
-            #     "If asked to debug, explain the issue and provide the corrected code."
-            # ),
-            'code': (
-    "You are an expert programming assistant. When users ask for code, return only working Python code in properly formatted triple backtick blocks.\n"
-    "Include brief in-line comments and no extra explanation unless specifically asked.\n"
-    "For example:\n"
-    "```python\n"
-    "# This function adds two numbers\n"
-    "def add(a, b):\n"
-    "    return a + b\n"
-    "```\n"
-    "User may ask to fix broken code, write scripts, or generate API functions. Be direct and to the point."
-),
-
-            'calculate': (
-                "You are a mathematical assistant. Solve problems step by step and show your work clearly. "
-                "For complex calculations, break them down into understandable steps."
-            ),
-            'general': (
-                "Respond naturally and conversationally. Keep responses concise but informative. "
-                "If you don't know something, be honest about it."
-            )
-        }
-        
-        context_prompt = context_prompts.get(context, context_prompts['general'])
-        
-        return f"{base_persona}{context_prompt}\n\nUser: {command}\n\nRespond clearly and concisely:"
-    
-    def process_response(self, response: str, context: str) -> str:
-        """Process response based on context"""
-        if context == 'code':
-            # Extract and format code blocks
-            code_blocks = re.findall(r'```[\w]*\n(.*?)\n```', response, re.DOTALL)
-            if code_blocks:
-                # Speak summary, return full response with code
-                summary = response.split('\n')[0]
-                tts.speak_text(f"{summary} The complete code is displayed on screen.")
-                return response
-        
-        # For non-code responses, speak the first sentence
-        first_sentence = response.split('.')[0] + '.'
-        tts.speak_text(first_sentence)
-        return response
-
-# Initialize Gemini client
-gemini = GeminiClient()
-
-# ========== Enhanced Wikipedia Integration ==========
-class WikipediaClient:
-    def __init__(self):
-        wikipedia.set_lang("en")
-    
-    def get_summary(self, query: str, sentences: int = 3) -> str:
-        """Get Wikipedia summary with better error handling"""
-        try:
-            # First, search for the topic
-            search_results = wikipedia.search(query, results=5)
-            
-            if not search_results:
-                return f"No Wikipedia articles found for '{query}'. Try being more specific."
-            
-            # Try the first result
-            try:
-                summary = wikipedia.summary(search_results[0], sentences=sentences)
-                return f"According to Wikipedia: {summary}"
-            
-            except wikipedia.exceptions.DisambiguationError as e:
-                # Handle disambiguation
-                options = e.options[:3]
-                return f"'{query}' could refer to multiple things. Did you mean: {', '.join(options)}? Please be more specific."
-            
-            except wikipedia.exceptions.PageError:
-                # Try the second result if first fails
-                if len(search_results) > 1:
-                    try:
-                        summary = wikipedia.summary(search_results[1], sentences=sentences)
-                        return f"According to Wikipedia: {summary}"
-                    except:
-                        pass
-                return f"Couldn't find a Wikipedia page for '{query}'. Try a different search term."
-        
-        except Exception as e:
-            logger.error(f"Wikipedia error: {e}")
-            return "Sorry, I couldn't fetch information from Wikipedia right now."
-
-# Initialize Wikipedia client
-wiki = WikipediaClient()
-
-# ========== Command Handlers ==========
-class CommandHandlers:
-    @staticmethod
-    def handle_greeting(command: str) -> str:
-        greetings = [
-            "Hello! I'm AURA+, your AI assistant. How can I help you today?",
-            "Hi there! Ready to assist you with anything you need.",
-            "Hey! I'm here to help. What would you like to know or do?"
-        ]
-        import random
-        response = random.choice(greetings)
-        tts.speak_text(response, priority=True)
-        return response
-    
-    @staticmethod
-    def handle_time(command: str) -> str:
-        now = datetime.datetime.now()
-        if "date" in command:
-            response = f"Today is {now.strftime('%A, %B %d, %Y')}"
-        else:
-            response = f"The current time is {now.strftime('%I:%M %p')}"
-        tts.speak_text(response, priority=True)
-        return response
-    
-    @staticmethod
-    def handle_about(command: str) -> str:
-        response = (
-            "I am AURA+, an advanced AI voice assistant created by talented students "
-            "Anshul, Naman, and Rhytham from Medicaps University. I can help you with "
-            "coding, research, calculations, web browsing, and much more!"
-        )
-        tts.speak_text(response, priority=True)
-        return response
-    
-    @staticmethod
-    def handle_youtube(command: str) -> str:
-        try:
-            webbrowser.open("https://youtube.com")
-            response = "Opening YouTube for you!"
-            tts.speak_text(response)
-            return response
-        except Exception as e:
-            logger.error(f"YouTube error: {e}")
-            return "Sorry, couldn't open YouTube."
-    
-    @staticmethod
-    def handle_play(command: str) -> str:
-        try:
-            song = command.replace("play", "").replace("music", "").strip()
-            if song:
-                pywhatkit.playonyt(song)
-                response = f"Playing '{song}' on YouTube!"
-            else:
-                pywhatkit.playonyt("popular music")
-                response = "Playing popular music on YouTube!"
-            tts.speak_text(response)
-            return response
-        except Exception as e:
-            logger.error(f"Play error: {e}")
-            return "Sorry, couldn't play the music right now."
-    
-    @staticmethod
-    def handle_weather(command: str) -> str:
-        try:
-            webbrowser.open("https://www.google.com/search?q=weather+forecast")
-            response = "Here's the current weather forecast!"
-            tts.speak_text(response)
-            return response
-        except Exception as e:
-            logger.error(f"Weather error: {e}")
-            return "Sorry, couldn't open weather information."
-    
-    @staticmethod
-    def handle_maps(command: str) -> str:
-        try:
-            location = command.replace("maps", "").replace("directions", "").replace("location", "").strip()
-            if location:
-                webbrowser.open(f"https://www.google.com/maps/search/{location}")
-                response = f"Opening maps for '{location}'"
-            else:
-                webbrowser.open("https://www.google.com/maps")
-                response = "Opening Google Maps!"
-            tts.speak_text(response)
-            return response
-        except Exception as e:
-            logger.error(f"Maps error: {e}")
-            return "Sorry, couldn't open maps."
-    
-    @staticmethod
-    def handle_google(command: str) -> str:
-        try:
-            search_term = command.replace("open google", "").replace("google search", "").strip()
-            if search_term:
-                webbrowser.open(f"https://www.google.com/search?q={search_term}")
-                response = f"Searching Google for '{search_term}'"
-            else:
-                webbrowser.open("https://www.google.com")
-                response = "Opening Google!"
-            tts.speak_text(response)
-            return response
-        except Exception as e:
-            logger.error(f"Google error: {e}")
-            return "Sorry, couldn't open Google."
-    
-    @staticmethod
-    def handle_exit(command: str) -> str:
-        responses = [
-            "Goodbye! Have a wonderful day!",
-            "See you later! Take care!",
-            "Bye! Feel free to come back anytime!"
-        ]
-        import random
-        response = random.choice(responses)
-        tts.speak_text(response, priority=True)
-        return response
-    
-    @staticmethod
-    def handle_creator(command: str) -> str:
-        response = (
-            "I was created by three brilliant students: Anshul, Naman, and Rhytham "
-            "from Medicaps University. They built me to be a helpful AI assistant!"
-        )
-        tts.speak_text(response, priority=True)
-        return response
-    
-    @staticmethod
-    def handle_help(command: str) -> str:
-        response = (
-            "I can help you with: coding and programming, web searches, playing music, "
-            "getting weather updates, opening websites, mathematical calculations, "
-            "Wikipedia searches, and general questions. Just ask me naturally!"
-        )
-        tts.speak_text("I can assist with many tasks. Check the screen for a complete list.", priority=True)
-        return response
-
-# Initialize handlers
-handlers = CommandHandlers()
-
-# ========== Routes ==========
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({
-        "status": "AURA+ Enhanced Server is running!",
-        "version": "2.0",
-        "features": ["Voice Recognition", "AI Integration", "Web Automation", "Code Assistance"]
-    })
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.datetime.now().isoformat(),
-        "services": {
-            "tts": "active",
-            "gemini": "connected" if GEMINI_API_KEY else "no_api_key",
-            "wikipedia": "active"
-        }
-    })
-
-@app.route("/command", methods=["POST"])
-def handle_command():
     try:
-        data = request.get_json()
-        if not data or 'command' not in data:
-            return jsonify({"error": "No command provided"}), 400
+        # --- History Management ---
+        chat_doc = chat_ref.get()
+        history = chat_doc.to_dict().get('messages', []) if chat_doc.exists else []
+
+        # Inside the try block of your /chat endpoint
+        chat_session = model.start_chat(history=history)
+        response = chat_session.send_message(gemini_content)
+
+# Serialize and store safely
+        def serialize_gemini_content(content):
+            return {
+                "role": content.role,
+                "parts": [part.text for part in content.parts]
+            }
         
-        command = data.get("command", "").strip()
-        if not command:
-            return jsonify({"error": "Empty command"}), 400
-        
-        logger.info(f"Processing command: {command}")
-        
-        # Classify the command
-        category, extracted_text = processor.classify_command(command)
-        
-        # Route to appropriate handler
-        response = route_command(category, command, extracted_text)
-        
-        return jsonify({
-            "response": response,
-            "category": category,
-            "timestamp": datetime.datetime.now().isoformat()
+        chat_ref.set({
+            "messages": [serialize_gemini_content(msg) for msg in chat_session.history]
         })
-    
+
+
+        return jsonify({"response": response.text})      
+
     except Exception as e:
-        logger.error(f"Command handling error: {e}")
-        error_response = "Sorry, I encountered an error processing your request."
-        tts.speak_text(error_response)
-        return jsonify({"error": error_response}), 500
+        print(f"API call error: {e}")
+        return jsonify({"error": "Failed to get response from AI."}), 500
 
-def route_command(category: str, command: str, extracted_text: str) -> str:
-    """Route command to appropriate handler"""
-    handler_map = {
-        'greeting': handlers.handle_greeting,
-        'time': handlers.handle_time,
-        'about': handlers.handle_about,
-        'youtube': handlers.handle_youtube,
-        'play': handlers.handle_play,
-        'weather': handlers.handle_weather,
-        'maps': handlers.handle_maps,
-        'google': handlers.handle_google,
-        'exit': handlers.handle_exit,
-        'creator': handlers.handle_creator,
-        'help': handlers.handle_help
-    }
-    
-    if category in handler_map:
-        return handler_map[category](command)
-    elif category == 'wikipedia' or category == 'search':
-        response = wiki.get_summary(extracted_text or command)
-        tts.speak_text(response.split('.')[0] + '.')
-        return response
+@app.route('/get_history', methods=['GET'])
+def get_history():
+    """Page load par purani chat history bhejta hai"""
+    uid = get_user_session()
+    chat_ref = db.collection('chats').document(uid)
+    chat_doc = chat_ref.get()
+
+    if chat_doc.exists:
+        return jsonify(chat_doc.to_dict().get('messages', []))
     else:
-        # Use Gemini for general queries, coding, calculations, etc.
-        context = 'code' if category == 'code' else 'calculate' if category == 'calculate' else 'general'
-        return gemini.get_response(command, context)
+        return jsonify([])
 
-# ========== Error Handlers ==========
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({"error": "Endpoint not found"}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({"error": "Internal server error"}), 500
-
-# ========== Startup ==========
-if __name__ == "__main__":
-    print("🚀 AURA+ Enhanced Server Starting...")
-    print("✅ TTS Engine: Initialized")
-    print("✅ Gemini AI: " + ("Connected" if GEMINI_API_KEY else "No API Key"))
-    print("✅ Wikipedia: Active")
-    print("✅ Web Browser: Ready")
-    print("🌟 Server running at http://127.0.0.1:5000")
-    print("\n🎯 Available endpoints:")
-    print("   GET  /         - Home page")
-    print("   GET  /health   - Health check")
-    print("   POST /command  - Process voice commands")
-    
-    app.run(debug=False, host='127.0.0.1', port=5000, threaded=True)
-
+# --- Run the App ---
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
 
 # from flask import Flask, request, jsonify
 # from flask_cors import CORS
