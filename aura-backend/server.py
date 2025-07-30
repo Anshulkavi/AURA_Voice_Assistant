@@ -457,10 +457,10 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from dotenv import load_dotenv
 from PIL import Image
-
+import json
 import google.generativeai as genai
 import firebase_admin
-from firebase_admin import credentials, firestore, auth
+from firebase_admin import credentials, firestore, auth, initialize_app
 
 # --- Initial Setup ---
 load_dotenv()
@@ -473,10 +473,15 @@ CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liy
 
 # Firebase Admin SDK
 try:
-    cred = credentials.Certificate(os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH"))
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("✅ Firebase Admin SDK successfully initialized.")
+    firebase_creds = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+
+    if firebase_creds:
+        cred = credentials.Certificate(json.loads(firebase_creds))
+        initialize_app(cred)
+        db = firestore.client()
+        print("✅ Firebase Admin SDK successfully initialized.")
+    else:
+        raise ValueError("FIREBASE_SERVICE_ACCOUNT environment variable is not set")
 except Exception as e:
     print(f"❌ Firebase initialization failed: {e}")
     db = None
