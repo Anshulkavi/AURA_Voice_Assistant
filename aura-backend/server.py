@@ -453,7 +453,7 @@
 import os
 import io
 import base64
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, send_from_directory
 from flask_cors import CORS
 from dotenv import load_dotenv
 from PIL import Image
@@ -465,7 +465,7 @@ from firebase_admin import credentials, firestore, auth, initialize_app
 # --- Initial Setup ---
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='client', static_url_path='')
 app.secret_key = os.urandom(24) # Session ke liye zaroori hai
 CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liye
 
@@ -573,10 +573,19 @@ def get_history():
         return jsonify(chat_doc.to_dict().get('messages', []))
     else:
         return jsonify([])
+    
+# ✅ React route fallback
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
 # --- Run the App ---
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
 
 # from flask import Flask, request, jsonify
 # from flask_cors import CORS
