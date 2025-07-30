@@ -58,12 +58,10 @@ __pycache__/
 # =================================================
 # == Frontend (Node/React) ==
 # =================================================
-# Dependencies
-node_modules/
+
 
 # Production build folder
-build/
-dist/
+
 
 # Logs
 npm-debug.log*
