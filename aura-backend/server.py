@@ -472,16 +472,13 @@ CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liy
 # --- Services Initialize Karna ---
 
 # Firebase Admin SDK
+firebase_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 try:
-    firebase_creds = os.getenv("FIREBASE_SERVICE_ACCOUNT")
-
-    if firebase_creds:
-        cred = credentials.Certificate(json.loads(firebase_creds))
-        initialize_app(cred)
-        db = firestore.client()
-        print("✅ Firebase Admin SDK successfully initialized.")
-    else:
-        raise ValueError("FIREBASE_SERVICE_ACCOUNT environment variable is not set")
+    cred_dict = json.loads(firebase_json)
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("✅ Firebase Admin SDK successfully initialized.")
 except Exception as e:
     print(f"❌ Firebase initialization failed: {e}")
     db = None
