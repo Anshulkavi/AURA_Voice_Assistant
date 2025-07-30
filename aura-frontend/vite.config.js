@@ -10,4 +10,5 @@ export default defineConfig({
       '/command': 'http://localhost:5000',
     },
   },
+   base: '/', 
 })
