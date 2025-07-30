@@ -465,9 +465,11 @@ from firebase_admin import credentials, firestore, auth, initialize_app
 # --- Initial Setup ---
 load_dotenv()
 
-app = Flask(__name__, static_folder='client', static_url_path='')
+app = Flask(__name__, static_folder='client/build', static_url_path='')
 app.secret_key = os.urandom(24) # Session ke liye zaroori hai
-CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liye
+# CORS(app, supports_credentials=True) # React/JS frontend se connect karne ke liye
+# CORS(app, origins=["https://aura-voice-assistant-1.onrender.com"], supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # --- Services Initialize Karna ---
 
