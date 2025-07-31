@@ -404,29 +404,26 @@ else:
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 # ✅ Fixed CORS configuration
-if os.environ.get('FLASK_ENV') == 'production':
-    # Get allowed origins from environment variable or use default
-    allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'https://aura-voice-assistant.onrender.com').split(',')
-    # Clean up any whitespace in origins
-    allowed_origins = [origin.strip() for origin in allowed_origins]
+# 👇 Automatically detects if you're in production (Render) or not
+IS_PROD = os.environ.get('FLASK_ENV') == 'production'
+
+if IS_PROD:
+    # ✅ Hardcoded frontend URL for Render production (adjust if needed)
+    allowed_origins = ['https://aura-voice-assistant-1.onrender.com']
     print(f"🌐 Production CORS origins: {allowed_origins}")
-    
-    CORS(app, 
-         resources={r"/*": {
-             "origins": allowed_origins,
-             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-             "supports_credentials": True
-         }})
 else:
-    print("🌐 Development CORS enabled for localhost")
-    CORS(app, 
-         resources={r"/*": {
-             "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
-             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-             "supports_credentials": True
-         }})
+    # ✅ Local development React server
+    allowed_origins = ['http://localhost:5173', 'http://127.0.0.1:5173']
+    print("🌐 Development CORS origins: localhost")
+
+# ✅ Apply CORS
+CORS(app, 
+     resources={r"/*": {
+         "origins": allowed_origins,
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+         "supports_credentials": True
+     }})
 
 # Handle preflight OPTIONS requests explicitly
 @app.before_request
