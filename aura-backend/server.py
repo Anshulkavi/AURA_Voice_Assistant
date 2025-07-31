@@ -181,7 +181,7 @@ if os.environ.get('FLASK_ENV') == 'production':
 else:
     app = Flask(__name__)
 
-app.secret_key = os.urandom(24)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 # Configure CORS based on environment
 if os.environ.get('FLASK_ENV') == 'production':
@@ -192,7 +192,9 @@ else:
 # --- Firebase Admin Init ---
 try:
     if not firebase_admin._apps:  # prevents double-initialization on reloads
-        cred = credentials.Certificate("firebase-service-account.json")
+        cred_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+        cred = credentials.Certificate(cred_path)
+
         firebase_admin.initialize_app(cred)
         print("✅ Firebase Admin SDK initialized.")
     db = firestore.client()
