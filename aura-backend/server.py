@@ -404,19 +404,15 @@ else:
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 # ✅ Fixed CORS configuration
-# 👇 Automatically detects if you're in production (Render) or not
 IS_PROD = os.environ.get('FLASK_ENV') == 'production'
 
 if IS_PROD:
-    # ✅ Hardcoded frontend URL for Render production (adjust if needed)
-    allowed_origins = ['https://aura-voice-assistant-1.onrender.com']
+    allowed_origins = ['https://aura-voice-assistant-1.onrender.com']  # 👈 Exact frontend domain
     print(f"🌐 Production CORS origins: {allowed_origins}")
 else:
-    # ✅ Local development React server
     allowed_origins = ['http://localhost:5173', 'http://127.0.0.1:5173']
     print("🌐 Development CORS origins: localhost")
 
-# ✅ Apply CORS
 CORS(app, 
      resources={r"/*": {
          "origins": allowed_origins,
