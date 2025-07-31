@@ -188,12 +188,16 @@ if os.environ.get('FLASK_ENV') == 'production':
     CORS(app, resources={r"/*": {"origins": ["https://aura-voice-assistant-1.onrender.com"]}}, supports_credentials=True)
 else:
     CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}}, supports_credentials=True)
+
 # --- Firebase Admin Init ---
 try:
     if not firebase_admin._apps:  # prevents double-initialization on reloads
-        cred_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
-        cred = credentials.Certificate(cred_path)
+        service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if not service_account_json:
+            raise ValueError("Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable")
 
+        cred_dict = json.loads(service_account_json)
+        cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
         print("✅ Firebase Admin SDK initialized.")
     db = firestore.client()
