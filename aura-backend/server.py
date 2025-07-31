@@ -183,12 +183,11 @@ else:
 
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
-# Configure CORS based on environment
+# ✅ Corrected CORS configuration
 if os.environ.get('FLASK_ENV') == 'production':
-    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    CORS(app, resources={r"/*": {"origins": ["https://aura-voice-assistant-1.onrender.com"]}}, supports_credentials=True)
 else:
     CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}}, supports_credentials=True)
-
 # --- Firebase Admin Init ---
 try:
     if not firebase_admin._apps:  # prevents double-initialization on reloads
