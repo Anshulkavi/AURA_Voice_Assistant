@@ -1,111 +1,167 @@
-// import { useState } from 'react'
-// import reactLogo from './assets/react.svg'
-// import viteLogo from '/vite.svg'
-// import './App.css'
-// import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-// import Hero from './components/Hero';
-// import Features from './components/Features';
-// import UseCases from './components/UseCases';
-// import HowItWorks from './components/HowItWorks';
-// import Download from './components/Download';
-// import Footer from './components/Footer';
-// import Header from './components/Header';
-// import Chatbot from './components/Chatbot';
 
-// function HomePage() {
-//   return (
-//     <>
-//       <Header />
-//       <main className="relative z-10 mt-16 flex-1">
-//         <Hero />
-//         <Features />
-//         <UseCases />
-//         <HowItWorks />
-//         <Download />
-//       </main>
-//       <Footer />
-//     </>
-//   );
-// }
 
-// export default function App() {
-//   return (
-//     <div className="min-h-screen flex flex-col bg-white text-gray-900 dark:bg-gray-900 dark:text-white">
+// // import {
+// //   BrowserRouter as Router,
+// //   Routes,
+// //   Route,
+// //   useLocation,
+// // } from "react-router-dom";
+// // import Header from "./components/Header";
+// // import Footer from "./components/Footer";
+// // import Hero from "./components/Hero";
+// // import Features from "./components/Features";
+// // import UseCases from "./components/UseCases";
+// // import HowItWorks from "./components/HowItWorks";
+// // import Download from "./components/Download";
+// // import Chatbot from "./components/Chatbot";
 
-//       <Router>
-//         <Routes>
-//           <Route path="/" element={<HomePage />} />
-//           <Route path="/chatbot" element={<Chatbot />} />
-//         </Routes>
-//       </Router>
-//     </div>
+// // // ✅ Layout component that conditionally hides footer
+// // function Layout({ children }) {
+// //   const location = useLocation();
+// //   const hideFooterRoutes = ['/chatbot'];
+// //   const isChatbot = location.pathname === '/chatbot';
 
-//   );
-// }
+// //   return (
+// //     <div className={`flex flex-col ${isChatbot ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+// //       <Header />
+// //       <main className={`flex-1 ${isChatbot ? 'overflow-hidden pt-16' : 'pt-16'}`}>
+// //         {children}
+// //       </main>
+// //       {!hideFooterRoutes.includes(location.pathname) && <Footer />}
+// //     </div>
+// //   );
+// // }
 
-// import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-// import Header from './components/Header';
-// import Footer from './components/Footer';
-// import Hero from './components/Hero';
-// import Features from './components/Features';
-// import UseCases from './components/UseCases';
-// import HowItWorks from './components/HowItWorks';
-// import Download from './components/Download';
-// import Chatbot from './components/Chatbot';
-// import { useLocation } from 'react-router-dom'; // or 'next/router' for Next.js
 
+// // // ✅ Home page content
+// // function HomePageContent() {
+// //   return (
+// //     <>
+// //       <Hero />
+// //       <Features />
+// //       <UseCases />
+// //       <HowItWorks />
+// //       <Download />
+// //     </>
+// //   );
+// // }
+
+// // // ✅ Chatbot page content
+// // function ChatbotPageContent() {
+// //   return <Chatbot />;
+// // }
+
+// // // ✅ App
+// // export default function App() {
+// //   return (
+// //     <div className="min-h-screen flex flex-col">
+// //       <Router>
+// //         <Routes>
+// //           <Route
+// //             path="/"
+// //             element={
+// //               <Layout>
+// //                 <HomePageContent />
+// //               </Layout>
+// //             }
+// //           />
+// //           <Route
+// //             path="/chatbot"
+// //             element={
+// //               <Layout>
+// //                 <ChatbotPageContent />
+// //               </Layout>
+// //             }
+// //           />
+// //         </Routes>
+// //       </Router>
+// //     </div>
+// //   );
+// // }
+
+// import {
+//   BrowserRouter as Router,
+//   Routes,
+//   Route,
+//   useLocation,
+// } from "react-router-dom";
+// import Header from "./components/Header";
+// import Footer from "./components/Footer";
+// import Hero from "./components/Hero";
+// import Features from "./components/Features";
+// import UseCases from "./components/UseCases";
+// import HowItWorks from "./components/HowItWorks";
+// import Download from "./components/Download";
+// import Chatbot from "./components/Chatbot";
+
+// // Layout component that conditionally handles header/footer
 // function Layout({ children }) {
-//   const location = useLocation(); // get current path
+//   const location = useLocation();
+//   const isChatbot = location.pathname === '/chatbot';
+//   const hideFooterRoutes = ['/chatbot'];
 
-//   const hideFooterRoutes = ['/chatbot']; // Add more routes if needed
+//   if (isChatbot) {
+//     // For chatbot page, no header/footer, full height
+//     return (
+//       <div className="h-screen overflow-hidden">
+//         {children}
+//       </div>
+//     );
+//   }
 
+//   // For other pages, normal layout with header/footer
 //   return (
-//     <>
+//     <div className="flex flex-col min-h-screen">
 //       <Header />
-//       <main>{children}</main>
+//       <main className="flex-1 pt-16">
+//         {children}
+//       </main>
 //       {!hideFooterRoutes.includes(location.pathname) && <Footer />}
-//     </>
+//     </div>
 //   );
 // }
 
-// function HomePage() {
+// // Home page content
+// function HomePageContent() {
 //   return (
 //     <>
-//       <Header />
-//       <main className="mt-16 flex-1">
-//         <Hero />
-//         <Features />
-//         <UseCases />
-//         <HowItWorks />
-//         <Download />
-//       </main>
-//       <Footer />
+//       <Hero />
+//       <Features />
+//       <UseCases />
+//       <HowItWorks />
+//       <Download />
 //     </>
 //   );
 // }
 
-// function ChatbotPage() {
-//   return (
-//     <>
-//       <Header />
-//       <main className="mt-16 flex-1">
-//         <Chatbot />
-//       </main>
-//       <Footer />
-//     </>
-//   );
+// // Chatbot page content (no extra wrapper needed)
+// function ChatbotPageContent() {
+//   return <Chatbot />;
 // }
 
+// // Main App component
 // export default function App() {
 //   return (
-//     <div className="min-h-screen flex flex-col">
-//       <Router>
-//         <Routes>
-//           <Route path="/" element={<HomePage />} />
-//           <Route path="/chatbot" element={<ChatbotPage />} />
-//         </Routes>
-//       </Router>
-//     </div>
+//     <Router>
+//       <Routes>
+//         <Route
+//           path="/"
+//           element={
+//             <Layout>
+//               <HomePageContent />
+//             </Layout>
+//           }
+//         />
+//         <Route
+//           path="/chatbot"
+//           element={
+//             <Layout>
+//               <ChatbotPageContent />
+//             </Layout>
+//           }
+//         />
+//       </Routes>
+//     </Router>
 //   );
 // }
 
@@ -114,6 +170,7 @@ import {
   Routes,
   Route,
   useLocation,
+  Navigate,
 } from "react-router-dom";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -124,16 +181,26 @@ import HowItWorks from "./components/HowItWorks";
 import Download from "./components/Download";
 import Chatbot from "./components/Chatbot";
 
-// ✅ Layout component that conditionally hides footer
+// Layout component that conditionally handles header/footer
 function Layout({ children }) {
   const location = useLocation();
-  const hideFooterRoutes = ['/chatbot'];
   const isChatbot = location.pathname === '/chatbot';
+  const hideFooterRoutes = ['/chatbot'];
 
+  if (isChatbot) {
+    // For chatbot page, no header/footer, full height
+    return (
+      <div className="h-screen overflow-hidden">
+        {children}
+      </div>
+    );
+  }
+
+  // For other pages, normal layout with header/footer
   return (
-    <div className={`flex flex-col ${isChatbot ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className="flex flex-col min-h-screen">
       <Header />
-      <main className={`flex-1 ${isChatbot ? 'overflow-hidden pt-16' : 'pt-16'}`}>
+      <main className="flex-1 pt-16">
         {children}
       </main>
       {!hideFooterRoutes.includes(location.pathname) && <Footer />}
@@ -141,8 +208,7 @@ function Layout({ children }) {
   );
 }
 
-
-// ✅ Home page content
+// Home page content
 function HomePageContent() {
   return (
     <>
@@ -155,35 +221,56 @@ function HomePageContent() {
   );
 }
 
-// ✅ Chatbot page content
+// Chatbot page content (no extra wrapper needed)
 function ChatbotPageContent() {
   return <Chatbot />;
 }
 
-// ✅ App
+// 404 Not Found component
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
+      <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
+      <p className="text-gray-400 mb-8">The page you're looking for doesn't exist.</p>
+      <div className="space-x-4">
+        <a href="/" className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors">
+          Go Home
+        </a>
+        <a href="/chatbot" className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg transition-colors">
+          Go to Chatbot
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// Main App component
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <Router>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <Layout>
-                <HomePageContent />
-              </Layout>
-            }
-          />
-          <Route
-            path="/chatbot"
-            element={
-              <Layout>
-                <ChatbotPageContent />
-              </Layout>
-            }
-          />
-        </Routes>
-      </Router>
-    </div>
+    <Router>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <Layout>
+              <HomePageContent />
+            </Layout>
+          }
+        />
+        <Route
+          path="/chatbot"
+          element={
+            <Layout>
+              <ChatbotPageContent />
+            </Layout>
+          }
+        />
+        {/* Catch all other routes and redirect to home or show 404 */}
+        <Route
+          path="*"
+          element={<NotFound />}
+        />
+      </Routes>
+    </Router>
   );
 }

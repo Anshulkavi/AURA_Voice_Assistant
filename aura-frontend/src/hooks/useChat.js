@@ -2,62 +2,188 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL;
+// Use /api prefix for development, and the actual backend URL for production
+const API_URL = import.meta.env.PROD 
+  ? (import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000')
+  : '/api'; // In development, use proxy
 
 export function useChat() {
   const [messages, setMessages] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
 
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const response = await fetch(`${API_URL}/get_history`, { credentials: 'include' });
-        const historyData = await response.json();
-        
-        const formattedHistory = historyData.map(msg => ({
-          text: msg.parts[0].text, // Ab '[Image]' placeholder ki zaroorat nahi
-          sender: msg.role
-        }));
-        
-        setMessages(formattedHistory.length > 0 ? formattedHistory : [{ text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?", sender: "bot" }]);
-      } catch (error) {
-        console.error("History fetch karne me error:", error);
-        setMessages([{ text: "Server se connect nahi ho pa raha.", sender: "bot" }]);
+  const fetchHistory = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/get_history`, { 
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
-    fetchHistory();
+      
+      const historyData = await response.json();
+      
+      // Store raw history for sidebar
+      setHistory(historyData);
+      
+      // Format messages for chat display
+      const formattedHistory = historyData.map((msg, index) => {
+        const firstPart = msg.parts?.[0];
+        return {
+          id: index,
+          text: typeof firstPart === 'string' ? firstPart : '[Image]',
+          sender: msg.role === 'user' ? 'user' : 'model'
+        };
+      });
+
+      setMessages(formattedHistory.length > 0 ? formattedHistory : [
+        { 
+          id: 0, 
+          text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?", 
+          sender: "bot" 
+        }
+      ]);
+      
+    } catch (error) {
+      console.error("History fetch error:", error);
+      setMessages([
+        { 
+          id: 0, 
+          text: "Server se connect nahi ho pa raha. Please try again later.", 
+          sender: "bot" 
+        }
+      ]);
+    }
   }, []);
 
-  // sendMessage ab sirf text lega
-  const sendMessage = useCallback(async (prompt) => {
-    if (!prompt.trim()) return;
+  useEffect(() => {
+    // Set initial conversation ID
+    if (!conversationId) {
+      setConversationId(Date.now().toString());
+    }
+    fetchHistory();
+  }, [fetchHistory, conversationId]);
 
-    const userMessage = { text: prompt, sender: 'user' };
-    setMessages(prev => (prev ? [...prev, userMessage] : [userMessage]));
+  const sendMessage = useCallback(async (prompt) => {
+    if (!prompt?.trim()) return;
+
+    const userMessage = { 
+      id: Date.now(), 
+      text: prompt.trim(), 
+      sender: 'user' 
+    };
+    
+    setMessages(prev => prev ? [...prev, userMessage] : [userMessage]);
     setIsLoading(true);
 
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt }), // Sirf prompt bhej rahe hain
-        credentials: 'include'
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ prompt: prompt.trim() }),
+        credentials: 'include' // This ensures session cookies are sent
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
+      
       const responseMessage = {
-        text: response.ok ? data.response : `Error: ${data.error}`,
-        sender: response.ok ? 'model' : 'bot'
+        id: Date.now() + 1,
+        text: data.response || 'Sorry, I couldn\'t process your request.',
+        sender: 'model'
       };
+      
       setMessages(prev => [...prev, responseMessage]);
 
+      // Refresh history after new message (with a small delay)
+      setTimeout(() => {
+        fetchHistory();
+      }, 1000);
+
     } catch (error) {
-      console.error("Server se connect karne me error:", error);
-      setMessages(prev => [...prev, { text: "Server se connect nahi ho pa raha.", sender: "bot" }]);
+      console.error("Send message error:", error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: `Error: ${error.message}. Please try again.`,
+        sender: "bot"
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
+  }, [fetchHistory]);
+
+  const clearChat = useCallback(async () => {
+    try {
+      // Clear chat history on server
+      const response = await fetch(`${API_URL}/clear_chat`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        // Generate new conversation ID
+        setConversationId(Date.now().toString());
+        
+        // Reset local state
+        setMessages([
+          { 
+            id: 0, 
+            text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?", 
+            sender: "bot" 
+          }
+        ]);
+        setHistory([]);
+      } else {
+        console.warn('Failed to clear chat on server');
+        // Still clear locally
+        setConversationId(Date.now().toString());
+        setMessages([
+          { 
+            id: 0, 
+            text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?", 
+            sender: "bot" 
+          }
+        ]);
+        setHistory([]);
+      }
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+      // Fallback to local clear
+      setConversationId(Date.now().toString());
+      setMessages([
+        { 
+          id: 0, 
+          text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?", 
+          sender: "bot" 
+        }
+      ]);
+      setHistory([]);
+    }
   }, []);
 
-  return { messages, isLoading, sendMessage };
+  return { 
+    messages, 
+    isLoading, 
+    sendMessage, 
+    history, 
+    fetchHistory,
+    clearChat,
+    conversationId 
+  };
 }
