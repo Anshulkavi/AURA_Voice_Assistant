@@ -17,6 +17,7 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, '') // Remove /api prefix
       }
     },
+    historyApiFallback: true, 
   },
   base: '/',
   build: {
