@@ -23,7 +23,20 @@ else:
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 # --- CORS Configuration ---
-IS_PROD = os.environ.get('FLASK_ENV') == 'production'
+# Check multiple ways to determine if we're in production
+IS_PROD = (
+    os.environ.get('FLASK_ENV') == 'production' or 
+    os.environ.get('NODE_ENV') == 'production' or
+    os.environ.get('RENDER') is not None or  # Render.com detection
+    os.environ.get('HEROKU') is not None     # Heroku detection
+)
+
+print(f"🔍 Environment variables:")
+print(f"   FLASK_ENV: {os.environ.get('FLASK_ENV')}")
+print(f"   NODE_ENV: {os.environ.get('NODE_ENV')}")
+print(f"   RENDER: {os.environ.get('RENDER')}")
+print(f"   HEROKU: {os.environ.get('HEROKU')}")
+print(f"   IS_PROD determined as: {IS_PROD}")
 
 if IS_PROD:
     frontend_url = os.environ.get('FRONTEND_URL', 'https://aura-voice-assistant-1.onrender.com')
@@ -275,29 +288,69 @@ def legacy_clear_chat():
 
 # ✅ IMPORTANT: React serving routes MUST be defined LAST
 
-# --- Production React Serving (LAST in route definitions) ---
-if IS_PROD:
-    @app.route('/')
-    def serve_root():
-        print("📄 Serving React root")
+# --- React Serving Routes ---
+@app.route('/')
+def serve_root():
+    if IS_PROD:
+        print("📄 Serving React root (Production)")
         try:
-            index_path = os.path.join(app.static_folder, 'index.html')
-            if os.path.exists(index_path):
-                return send_file(index_path)
-            else:
-                print("❌ React build index.html not found")
-                return jsonify({"error": "React build not found"}), 404
+            # Check multiple possible locations for React build
+            possible_locations = [
+                os.path.join(app.static_folder, 'index.html') if app.static_folder else None,
+                os.path.join(os.getcwd(), 'client', 'build', 'index.html'),
+                os.path.join(os.getcwd(), 'client', 'dist', 'index.html'),
+                os.path.join(os.getcwd(), 'build', 'index.html'),
+                os.path.join(os.getcwd(), 'dist', 'index.html'),
+            ]
+            
+            print(f"🔍 Looking for React build in:")
+            for location in possible_locations:
+                if location:
+                    print(f"   - {location}")
+                    if os.path.exists(location):
+                        print(f"✅ Found React build at: {location}")
+                        return send_file(location)
+            
+            print("❌ React build not found in any expected location")
+            return jsonify({
+                "error": "React build not found",
+                "message": "Please build your React app first",
+                "expected_locations": [loc for loc in possible_locations if loc],
+                "current_directory": os.getcwd(),
+                "static_folder": app.static_folder,
+                "suggestion": "Run 'npm run build' in your React app directory"
+            }), 404
+            
         except Exception as e:
             print(f"❌ Error serving React root: {e}")
             return jsonify({"error": "Failed to serve application"}), 500
+    else:
+        print("📄 Development mode - Backend API only")
+        return jsonify({
+            "message": "AURA+ Backend API - Development Mode",
+            "status": "running",
+            "mode": "development",
+            "frontend": "Run React dev server separately on http://localhost:5173",
+            "api_endpoints": {
+                "chat": "/api/chat",
+                "history": "/api/get_history",
+                "clear": "/api/clear_chat",
+                "info": "/api/info",
+                "health": "/health"
+            },
+            "firebase_connected": db is not None,
+            "gemini_connected": model is not None,
+            "note": "Visit http://localhost:5173 for the React frontend"
+        })
 
-    @app.route('/<path:filename>')
-    def serve_static_or_react(filename):
-        # Skip API routes - they should never reach here
-        if filename.startswith('api/'):
-            print(f"❌ API route {filename} reached catch-all - this should not happen")
-            return jsonify({"error": f"API endpoint /{filename} not found"}), 404
-            
+@app.route('/<path:filename>')
+def serve_static_or_react(filename):
+    # Skip API routes - they should never reach here
+    if filename.startswith('api/'):
+        print(f"❌ API route {filename} reached catch-all - this should not happen")
+        return jsonify({"error": f"API endpoint /{filename} not found"}), 404
+    
+    if IS_PROD:
         # Check if it's a static file first
         if '.' in filename:
             static_path = os.path.join(app.static_folder, filename)
@@ -317,6 +370,13 @@ if IS_PROD:
         except Exception as e:
             print(f"❌ Error serving React for {filename}: {e}")
             return jsonify({"error": "Failed to serve application"}), 500
+    else:
+        print(f"📄 Development mode - {filename} not found")
+        return jsonify({
+            "error": f"Path /{filename} not found in development mode",
+            "message": "Run React dev server separately",
+            "react_dev_server": "http://localhost:5173"
+        }), 404
 
 # --- Error Handlers ---
 @app.errorhandler(404)
@@ -337,6 +397,14 @@ def not_found(error):
                 print("❌ React build index.html not found in 404 handler")
         except Exception as e:
             print(f"❌ Error in 404 handler: {e}")
+    else:
+        print(f"📄 Development mode - 404 for: {request.path}")
+        return jsonify({
+            "error": f"Path {request.path} not found in development mode",
+            "message": "This is the Flask backend API only. Run React dev server separately.",
+            "react_dev_server": "http://localhost:5173",
+            "available_endpoints": ["/api/chat", "/api/get_history", "/api/clear_chat", "/api/info", "/health"]
+        }), 404
     
     return jsonify({"error": "Not found"}), 404
 
@@ -361,6 +429,8 @@ if __name__ == '__main__':
         print("   - http://localhost:5000/api/get_history")
         print("   - http://localhost:5000/api/clear_chat")
         print("   - http://localhost:5000/health")
+        print("🚀 Start React dev server with: npm run dev (on port 5173)")
+        print("🌐 Access React app at: http://localhost:5173")
     else:
         frontend_url = os.environ.get('FRONTEND_URL', 'https://aura-voice-assistant-1.onrender.com')
         print(f"🌐 Production frontend URL: {frontend_url}")
