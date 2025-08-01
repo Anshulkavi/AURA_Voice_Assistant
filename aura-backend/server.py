@@ -16,7 +16,7 @@ load_dotenv()
 
 # Create Flask app
 if os.environ.get('FLASK_ENV') == 'production':
-    app = Flask(__name__, static_folder='client/build', static_url_path='')
+    app = Flask(__name__, static_folder='static', static_url_path='')
 else:
     app = Flask(__name__)
 
@@ -116,17 +116,28 @@ def after_request(response):
 # --- Firebase and AI Setup ---
 try:
     if not firebase_admin._apps:
+        # Try env variable first (for Render)
         service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
-        if not service_account_json:
-            raise ValueError("Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable")
-        cred_dict = json.loads(service_account_json)
-        cred = credentials.Certificate(cred_dict)
+
+        if service_account_json:
+            cred_dict = json.loads(service_account_json)
+            # Fix escaped newlines in private key
+            if "private_key" in cred_dict:
+                cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+            cred = credentials.Certificate(cred_dict)
+            print("✅ Firebase initialized from env variable.")
+        else:
+            # Fallback to local file (for dev)
+            cred = credentials.Certificate("firebase-service-account.json")
+            print("✅ Firebase initialized from local file.")
+
         firebase_admin.initialize_app(cred)
-        print("✅ Firebase Admin SDK initialized.")
+    
     db = firestore.client()
 except Exception as e:
     print(f"❌ Firebase initialization failed: {e}")
     db = None
+
 
 try:
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
