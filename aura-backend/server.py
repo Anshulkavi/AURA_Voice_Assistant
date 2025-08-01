@@ -38,16 +38,20 @@ else:
     print("🌐 Development CORS origins: localhost")
 
 CORS(app, 
-     resources={r"/*": {
-         "origins": allowed_origins,
-         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-         "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
-         "supports_credentials": True
-     }})
+     resources={
+         r"/api/*": {
+             "origins": allowed_origins,
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+             "supports_credentials": True
+         }
+     })
 
 # --- Request Handlers ---
 @app.before_request
 def handle_preflight():
+    print(f"🔍 Request: {request.method} {request.path} from {request.headers.get('Origin')}")
+    
     if request.method == "OPTIONS":
         response = make_response()
         origin = request.headers.get('Origin')
@@ -78,19 +82,21 @@ def handle_preflight():
 def after_request(response):
     origin = request.headers.get('Origin')
     
-    if IS_PROD:
-        frontend_url = os.environ.get('FRONTEND_URL', 'https://aura-voice-assistant-1.onrender.com')
-        allowed_origins_after = [
-            frontend_url,
-            'https://aura-voice-assistant-1.onrender.com',
-            'https://aura-voice-assistant.onrender.com'
-        ]
-    else:
-        allowed_origins_after = ["http://localhost:5173", "http://127.0.0.1:5173"]
-    
-    if origin in allowed_origins_after:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    # Only add CORS headers for API routes
+    if request.path.startswith('/api/'):
+        if IS_PROD:
+            frontend_url = os.environ.get('FRONTEND_URL', 'https://aura-voice-assistant-1.onrender.com')
+            allowed_origins_after = [
+                frontend_url,
+                'https://aura-voice-assistant-1.onrender.com',
+                'https://aura-voice-assistant.onrender.com'
+            ]
+        else:
+            allowed_origins_after = ["http://localhost:5173", "http://127.0.0.1:5173"]
+        
+        if origin in allowed_origins_after:
+            response.headers.add('Access-Control-Allow-Origin', origin)
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
     
     return response
 
@@ -130,32 +136,32 @@ def get_user_session():
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     print("🎯 API chat endpoint hit")
-    if not db or not model:
-        return jsonify({"error": "Backend services not running."}), 500
-
-    uid = get_user_session()
-    chat_ref = db.collection('chats').document(uid)
-    data = request.json
-    user_prompt = data.get('prompt', '')
-    image_base64 = data.get('image_base64')
-
-    if not user_prompt and not image_base64:
-        return jsonify({"error": "Prompt or image required."}), 400
-
-    gemini_content = []
-    if user_prompt:
-        gemini_content.append(user_prompt)
-
-    if image_base64:
-        try:
-            image_data = base64.b64decode(image_base64)
-            img = Image.open(io.BytesIO(image_data))
-            gemini_content.append(img)
-        except Exception as e:
-            print(f"❌ Image decode failed: {e}")
-            return jsonify({"error": "Invalid image format."}), 400
-
     try:
+        if not db or not model:
+            return jsonify({"error": "Backend services not running."}), 500
+
+        uid = get_user_session()
+        chat_ref = db.collection('chats').document(uid)
+        data = request.json
+        user_prompt = data.get('prompt', '')
+        image_base64 = data.get('image_base64')
+
+        if not user_prompt and not image_base64:
+            return jsonify({"error": "Prompt or image required."}), 400
+
+        gemini_content = []
+        if user_prompt:
+            gemini_content.append(user_prompt)
+
+        if image_base64:
+            try:
+                image_data = base64.b64decode(image_base64)
+                img = Image.open(io.BytesIO(image_data))
+                gemini_content.append(img)
+            except Exception as e:
+                print(f"❌ Image decode failed: {e}")
+                return jsonify({"error": "Invalid image format."}), 400
+
         chat_doc = chat_ref.get()
         history = chat_doc.to_dict().get('messages', []) if chat_doc.exists else []
         chat_session = model.start_chat(history=history)
@@ -174,7 +180,7 @@ def api_chat():
         return jsonify({"response": response.text})
     except Exception as e:
         print(f"❌ Gemini error: {e}")
-        return jsonify({"error": "Gemini failed to respond."}), 500
+        return jsonify({"error": f"Gemini failed to respond: {str(e)}"}), 500
 
 @app.route('/api/get_history', methods=['GET'])
 def api_get_history():
@@ -184,6 +190,7 @@ def api_get_history():
         print(f"👤 Getting history for UID: {uid}")
         
         if not db:
+            print("❌ Database not available")
             return jsonify({"error": "Database not available."}), 500
             
         chat_ref = db.collection('chats').document(uid)
@@ -196,9 +203,10 @@ def api_get_history():
         else:
             print(f"📭 No chat history found for UID: {uid}")
             return jsonify([])
+            
     except Exception as e:
         print(f"❌ Error in get_history: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Failed to get history: {str(e)}"}), 500
 
 @app.route('/api/clear_chat', methods=['POST'])
 def api_clear_chat():
@@ -226,6 +234,9 @@ def api_info():
     return jsonify({
         "message": "AURA+ Backend API",
         "version": "1.0.0",
+        "status": "running",
+        "firebase_connected": db is not None,
+        "gemini_connected": model is not None,
         "endpoints": [
             "/api/chat - POST - Send message to AI",
             "/api/get_history - GET - Retrieve chat history", 
@@ -274,6 +285,7 @@ if IS_PROD:
             if os.path.exists(index_path):
                 return send_file(index_path)
             else:
+                print("❌ React build index.html not found")
                 return jsonify({"error": "React build not found"}), 404
         except Exception as e:
             print(f"❌ Error serving React root: {e}")
@@ -281,6 +293,11 @@ if IS_PROD:
 
     @app.route('/<path:filename>')
     def serve_static_or_react(filename):
+        # Skip API routes - they should never reach here
+        if filename.startswith('api/'):
+            print(f"❌ API route {filename} reached catch-all - this should not happen")
+            return jsonify({"error": f"API endpoint /{filename} not found"}), 404
+            
         # Check if it's a static file first
         if '.' in filename:
             static_path = os.path.join(app.static_folder, filename)
@@ -295,6 +312,7 @@ if IS_PROD:
             if os.path.exists(index_path):
                 return send_file(index_path)
             else:
+                print("❌ React build index.html not found")
                 return jsonify({"error": "React build not found"}), 404
         except Exception as e:
             print(f"❌ Error serving React for {filename}: {e}")
@@ -303,6 +321,8 @@ if IS_PROD:
 # --- Error Handlers ---
 @app.errorhandler(404)
 def not_found(error):
+    print(f"❌ 404 Error for path: {request.path}")
+    
     if request.path.startswith('/api/'):
         print(f"❌ API endpoint not found: {request.path}")
         return jsonify({"error": f"API endpoint {request.path} not found"}), 404
@@ -313,8 +333,10 @@ def not_found(error):
             index_path = os.path.join(app.static_folder, 'index.html')
             if os.path.exists(index_path):
                 return send_file(index_path)
-        except:
-            pass
+            else:
+                print("❌ React build index.html not found in 404 handler")
+        except Exception as e:
+            print(f"❌ Error in 404 handler: {e}")
     
     return jsonify({"error": "Not found"}), 404
 
@@ -331,6 +353,7 @@ if __name__ == '__main__':
     print(f"🚀 Starting server on port {port}")
     print(f"🔧 Debug mode: {debug_mode}")
     print(f"🌍 Environment: {os.environ.get('FLASK_ENV', 'development')}")
+    print(f"🗂️ Static folder: {app.static_folder}")
     
     if debug_mode:
         print("📝 Development mode - API endpoints:")
@@ -347,5 +370,15 @@ if __name__ == '__main__':
         print("   - /api/get_history") 
         print("   - /api/clear_chat")
         print("   - /health")
+        
+        # Check if React build exists
+        if app.static_folder and os.path.exists(app.static_folder):
+            index_path = os.path.join(app.static_folder, 'index.html')
+            if os.path.exists(index_path):
+                print("✅ React build found")
+            else:
+                print("❌ React build index.html not found!")
+        else:
+            print("❌ Static folder not found!")
     
     app.run(host='0.0.0.0', port=port, debug=debug_mode)

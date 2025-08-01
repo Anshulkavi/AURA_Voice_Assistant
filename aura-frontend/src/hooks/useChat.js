@@ -32,6 +32,7 @@ export function useChat() {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
       
@@ -49,7 +50,7 @@ export function useChat() {
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await response.text();
         console.error('❌ Expected JSON but got:', textResponse.substring(0, 200));
-        throw new Error('Server returned HTML instead of JSON. Check backend logs.');
+        throw new Error('Server returned HTML instead of JSON. Check if API endpoint is working.');
       }
       
       const historyData = await response.json();
@@ -78,10 +79,22 @@ export function useChat() {
       
     } catch (error) {
       console.error("History fetch error:", error);
+      
+      // Check if we can reach the health endpoint to diagnose the issue
+      try {
+        const healthResponse = await fetch('/health');
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+          console.log('Health check:', healthData);
+        }
+      } catch (healthError) {
+        console.error('Health check failed:', healthError);
+      }
+      
       setMessages([
         { 
           id: 0, 
-          text: "Server se connect nahi ho pa raha. Please try again later.", 
+          text: "Server se connect nahi ho pa raha. Please check if backend is running.", 
           sender: "bot" 
         }
       ]);
@@ -121,9 +134,28 @@ export function useChat() {
         credentials: 'include' // This ensures session cookies are sent
       });
 
+      console.log(`📊 Chat response status: ${response.status}`);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If we can't parse JSON, it might be HTML
+          const textResponse = await response.text();
+          if (textResponse.includes('<!doctype html>')) {
+            errorMessage = 'Server returned HTML instead of JSON. API endpoint may not be working.';
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('❌ Expected JSON but got:', textResponse.substring(0, 200));
+        throw new Error('Server returned HTML instead of JSON for chat endpoint.');
       }
 
       const data = await response.json();
@@ -145,7 +177,7 @@ export function useChat() {
       console.error("Send message error:", error);
       const errorMessage = {
         id: Date.now() + 1,
-        text: `Error: ${error.message}. Please try again.`,
+        text: `Error: ${error.message}. Please check if backend is running properly.`,
         sender: "bot"
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -163,11 +195,18 @@ export function useChat() {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
 
       if (response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const result = await response.json();
+          console.log('Clear chat result:', result);
+        }
+        
         // Generate new conversation ID
         setConversationId(Date.now().toString());
         
@@ -182,7 +221,7 @@ export function useChat() {
         setHistory([]);
         console.log("✅ Chat cleared successfully");
       } else {
-        console.warn('Failed to clear chat on server');
+        console.warn('Failed to clear chat on server, status:', response.status);
         // Still clear locally
         setConversationId(Date.now().toString());
         setMessages([
