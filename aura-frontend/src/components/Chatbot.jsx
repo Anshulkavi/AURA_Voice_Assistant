@@ -1,450 +1,152 @@
-// import React, { useEffect, useRef } from 'react';
-// import ChatHeader from './ChatHeader';
-// import MessageBubble from './MessageBubble';
-// import ChatInput from './ChatInput';
-// import { useChat } from '../hooks/useChat'; // Naya hook import karein
+"use client"
 
-// function Chatbot() {
-//   // Saara logic ab 'useChat' hook se aa raha hai
-//   const { messages, isLoading, sendMessage } = useChat();
-//   const messagesEndRef = useRef(null);
-
-// // --- NAYA CODE START ---
-
-//   // 1. Text ko bolne wala function
-//   // 1. Text ko bolne wala function (Updated Version)
-//   const speak = (textToSpeak) => {
-//     // Safety check, agar text nahi hai to kuch na karein
-//     if (typeof textToSpeak !== 'string' || !textToSpeak) {
-//       return;
-//     }
-
-//     // Pehle se kuch bol raha ho to use rokein
-//     window.speechSynthesis.cancel();
-
-//     // --- Yahan hum sabhi special characters ko hata rahe hain ---
-//     const cleanText = textToSpeak
-//       .replace(/```[\s\S]*?```/g, 'Code block.') // Code blocks ko replace karein
-//       .replace(/[\*\_#]/g, '')  // Asterisks (*), underscores (_), aur hashtags (#) ko hata dein
-//       .replace(/\n/g, ' ');   // New lines (agle line me jaane ko) space se badal dein
-
-//     const utterance = new SpeechSynthesisUtterance(cleanText);
-//     utterance.lang = 'en-IN';
-//     utterance.rate = 0.9;
-
-//     window.speechSynthesis.speak(utterance);
-//   };
-
-//   // 2. Jab bhi naya message aaye, speech trigger karne ke liye
-//   useEffect(() => {
-//     if (!messages || messages.length === 0) return;
-
-//     // Aakhri message ko get karein
-//     const lastMessage = messages[messages.length - 1];
-
-//     // Check karein ki aakhri message AI ka hai ya nahi
-//     if (lastMessage.sender === 'model' || lastMessage.sender === 'bot') {
-//       speak(lastMessage.text);
-//     }
-//   }, [messages]);
-
-//   // Messages aane par niche scroll karne ka logic
-//   useEffect(() => {
-//     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-//   }, [messages]);
-
-//   // Loading state jab tak messages load na ho jaaye
-//   if (!messages) {
-//     return <div className="flex h-screen items-center justify-center bg-gray-900 text-white">Loading conversation...</div>;
-//   }
-
-//   return (
-//     <div className="flex flex-col h-screen font-sans text-white bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-//       <ChatHeader />
-
-//       <main className="flex-1 overflow-hidden p-4 flex flex-col">
-//         <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-//           {messages.map((msg, index) => (
-//             <MessageBubble key={index} message={msg} />
-//           ))}
-//           {isLoading && <MessageBubble isLoading={true} />}
-//           <div ref={messagesEndRef} />
-//         </div>
-
-//         {/* 'sendMessage' function ko ChatInput me bhej dein */}
-//         <ChatInput onSendMessage={sendMessage} isLoading={isLoading} />
-//       </main>
-//     </div>
-//   );
-// }
-
-// export default Chatbot;
-
-// import React, { useEffect, useRef, useState } from "react";
-// import ChatHeader from "./ChatHeader";
-// import MessageBubble from "./MessageBubble";
-// import ChatInput from "./ChatInput";
-// import Sidebar from "./Sidebar";
-// import { Menu } from "lucide-react";
-// import { useChat } from "../hooks/useChat";
-
-// function Chatbot() {
-//   const { messages, isLoading, sendMessage } = useChat();
-//   const messagesEndRef = useRef(null);
-
-//   const [sidebarOpen, setSidebarOpen] = useState(false);
-//   const [history, setHistory] = useState([]);
-
-//   useEffect(() => {
-//     fetch("http://localhost:5000/get_history")
-//       .then((res) => res.json())
-//       .then((data) => setHistory(data))
-//       .catch((err) => console.error("Failed to load history:", err));
-//   }, []);
-
-//   const speak = (textToSpeak) => {
-//     if (typeof textToSpeak !== "string" || !textToSpeak) return;
-//     window.speechSynthesis.cancel();
-//     const cleanText = textToSpeak
-//       .replace(/```[\s\S]*?```/g, "Code block.")
-//       .replace(/[\*\_#]/g, "")
-//       .replace(/\n/g, " ");
-//     const utterance = new SpeechSynthesisUtterance(cleanText);
-//     utterance.lang = "en-IN";
-//     utterance.rate = 0.9;
-//     window.speechSynthesis.speak(utterance);
-//   };
-
-//   useEffect(() => {
-//     if (!messages || messages.length === 0) return;
-//     const lastMessage = messages[messages.length - 1];
-//     if (lastMessage.sender === "model" || lastMessage.sender === "bot") {
-//       speak(lastMessage.text);
-//     }
-//   }, [messages]);
-
-//   useEffect(() => {
-//     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-//   }, [messages]);
-
-//   const handleNewChat = () => window.location.reload();
-
-//   const handleSelectChat = (index) => {
-//     console.log("Selected chat:", index);
-//     // Load chat from DB in future
-//   };
-
-//   if (!messages) {
-//     return (
-//       <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
-//         Loading conversation...
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="flex h-screen overflow-hidden font-sans relative">
-//       {/* Sidebar */}
-//       <Sidebar
-//         isOpen={sidebarOpen}
-//         onClose={() => setSidebarOpen(false)}
-//         history={history}
-//         onNewChat={handleNewChat}
-//         onSelectChat={handleSelectChat}
-//       />
-
-//       {/* Main Chat UI */}
-//       <div className="flex flex-col flex-1 bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white relative">
-//         {/* Toggle sidebar button (mobile only) */}
-//         <button
-//           className="md:hidden absolute top-4 left-4 z-50 text-zinc-300 hover:text-white"
-//           onClick={() => setSidebarOpen(!sidebarOpen)}
-//         >
-//           <Menu className="w-6 h-6" />
-//         </button>
-
-//         <ChatHeader />
-
-//         <main className="flex-1 overflow-hidden p-4 flex flex-col">
-//           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-//             {messages.map((msg, index) => (
-//               <MessageBubble key={index} message={msg} />
-//             ))}
-//             {isLoading && <MessageBubble isLoading />}
-//             <div ref={messagesEndRef} />
-//           </div>
-//           <ChatInput onSendMessage={sendMessage} isLoading={isLoading} />
-//         </main>
-//       </div>
-//     </div>
-//   );
-// }
-
-// export default Chatbot;
-
-// import React, { useEffect, useRef, useState } from "react";
-// import ChatHeader from "./ChatHeader";
-// import MessageBubble from "./MessageBubble";
-// import ChatInput from "./ChatInput";
-// import Sidebar from "./Sidebar";
-// import { Menu } from "lucide-react";
-// import { useChat } from "../hooks/useChat";
-
-// function Chatbot() {
-//   const { messages, isLoading, sendMessage, history, clearChat } = useChat();
-//   const messagesEndRef = useRef(null);
-//   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-//   // Text-to-speech function
-//   const speak = (textToSpeak) => {
-//     if (typeof textToSpeak !== "string" || !textToSpeak) return;
-    
-//     // Cancel any ongoing speech
-//     if (window.speechSynthesis.speaking) {
-//       window.speechSynthesis.cancel();
-//     }
-
-//     const cleanText = textToSpeak
-//       .replace(/```[\s\S]*?```/g, "Code block.")
-//       .replace(/[\*\_#`]/g, "")
-//       .replace(/\n+/g, " ")
-//       .replace(/\s+/g, " ")
-//       .trim();
-
-//     if (cleanText.length > 0) {
-//       const utterance = new SpeechSynthesisUtterance(cleanText);
-//       utterance.lang = "en-IN";
-//       utterance.rate = 0.9;
-//       utterance.pitch = 1;
-//       utterance.volume = 0.8;
-      
-//       // Add error handling
-//       utterance.onerror = (event) => {
-//         console.warn('Speech synthesis error:', event.error);
-//       };
-      
-//       window.speechSynthesis.speak(utterance);
-//     }
-//   };
-
-//   // Speak the latest bot/model message
-//   useEffect(() => {
-//     if (!messages || messages.length === 0) return;
-    
-//     const lastMessage = messages[messages.length - 1];
-//     if ((lastMessage.sender === "model" || lastMessage.sender === "bot") && 
-//         !isLoading) {
-//       // Small delay to ensure message is rendered
-//       setTimeout(() => speak(lastMessage.text), 100);
-//     }
-//   }, [messages, isLoading]);
-
-//   // Auto-scroll to bottom when new messages arrive
-//   useEffect(() => {
-//     if (messagesEndRef.current) {
-//       messagesEndRef.current.scrollIntoView({ 
-//         behavior: "smooth", 
-//         block: "end" 
-//       });
-//     }
-//   }, [messages, isLoading]);
-
-//   const handleNewChat = () => {
-//     // Stop any ongoing speech
-//     if (window.speechSynthesis.speaking) {
-//       window.speechSynthesis.cancel();
-//     }
-//     clearChat();
-//     setSidebarOpen(false);
-//   };
-
-//   const handleSelectChat = (chatIndex) => {
-//     console.log("Selected chat:", chatIndex);
-//     setSidebarOpen(false);
-//     // TODO: Implement chat loading from history
-//     // For now, just close sidebar
-//   };
-
-//   const handleCloseSidebar = () => {
-//     setSidebarOpen(false);
-//   };
-
-//   // Loading state
-//   if (!messages) {
-//     return (
-//       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
-//         <div className="text-center">
-//           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-//           <p className="text-lg">Loading conversation...</p>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="flex h-screen overflow-hidden font-sans relative bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-//       {/* Sidebar */}
-//       <Sidebar
-//         isOpen={sidebarOpen}
-//         onClose={handleCloseSidebar}
-//         history={history}
-//         onNewChat={handleNewChat}
-//         onSelectChat={handleSelectChat}
-//       />
-
-//       {/* Sidebar Overlay for mobile */}
-//       {sidebarOpen && (
-//         <div 
-//           className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-//           onClick={handleCloseSidebar}
-//         />
-//       )}
-
-//       {/* Main Chat Container */}
-//       <div className="flex flex-col flex-1 text-white relative min-w-0">
-//         {/* Mobile Menu Button */}
-//         <button
-//           className="md:hidden absolute top-4 left-4 z-50 text-zinc-300 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
-//           onClick={() => setSidebarOpen(!sidebarOpen)}
-//           aria-label="Toggle sidebar"
-//         >
-//           <Menu className="w-6 h-6" />
-//         </button>
-
-//         {/* Chat Header */}
-//         <ChatHeader />
-
-//         {/* Chat Messages Area */}
-//         <main className="flex-1 overflow-hidden p-4 flex flex-col min-h-0">
-//           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-//             {messages.map((msg) => (
-//               <MessageBubble key={msg.id || Math.random()} message={msg} />
-//             ))}
-            
-//             {/* Loading indicator */}
-//             {isLoading && (
-//               <MessageBubble 
-//                 message={{ text: "Typing...", sender: "bot" }} 
-//                 isLoading={true} 
-//               />
-//             )}
-            
-//             {/* Scroll target */}
-//             <div ref={messagesEndRef} className="h-1" />
-//           </div>
-          
-//           {/* Chat Input */}
-//           <ChatInput 
-//             onSendMessage={sendMessage} 
-//             isLoading={isLoading} 
-//           />
-//         </main>
-//       </div>
-//     </div>
-//   );
-// }
-
-// export default Chatbot;
-
-import React, { useEffect, useRef, useState } from "react";
-import ChatHeader from "./ChatHeader";
-import MessageBubble from "./MessageBubble";
-import ChatInput from "./ChatInput";
-import Sidebar from "./Sidebar";
-import { Menu } from "lucide-react";
-import { useChat } from "../hooks/useChat";
+import { useEffect, useRef, useState } from "react"
+import ChatHeader from "./ChatHeader"
+import MessageBubble from "./MessageBubble"
+import ChatInput from "./ChatInput"
+import Sidebar from "./Sidebar"
+import FlaskNotRunning from "./FlaskNotRunning"
+import BackendStatus from "./BackendStatus"
+import { Menu } from "lucide-react"
+import { useChat } from "../hooks/useChat"
+import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis"
 
 function Chatbot() {
-  const { messages, isLoading, sendMessage, history, clearChat } = useChat();
-  const messagesEndRef = useRef(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { messages, isLoading, sendMessage, history, clearChat, backendStatus, retryBackendConnection } = useChat()
+  const { speak, stop: stopSpeaking, isSpeaking } = useSpeechSynthesis()
+  const messagesEndRef = useRef(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isRetrying, setIsRetrying] = useState(false)
+  const lastProcessedMessageRef = useRef(null)
 
-  // Text-to-speech function
-  const speak = (textToSpeak) => {
-    if (typeof textToSpeak !== "string" || !textToSpeak) return;
-    
-    // Cancel any ongoing speech
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
+  // Provide default values to prevent undefined errors
+  const safeBackendStatus = backendStatus || {
+    running: false,
+    checked: false,
+    checking: true,
+    error: null,
+  }
 
-    const cleanText = textToSpeak
-      .replace(/```[\s\S]*?```/g, "Code block.")
-      .replace(/[\*\_#`]/g, "")
-      .replace(/\n+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (cleanText.length > 0) {
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = "en-IN";
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = 0.8;
-      
-      // Add error handling
-      utterance.onerror = (event) => {
-        console.warn('Speech synthesis error:', event.error);
-      };
-      
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  // Speak the latest bot/model message
+  // Speak the latest bot/model message - WITH LOOP PREVENTION
   useEffect(() => {
-    if (!messages || messages.length === 0) return;
-    
-    const lastMessage = messages[messages.length - 1];
-    if ((lastMessage.sender === "model" || lastMessage.sender === "bot") && 
-        !isLoading) {
-      // Small delay to ensure message is rendered
-      setTimeout(() => speak(lastMessage.text), 100);
+    if (!messages || messages.length === 0 || isLoading) return
+
+    const lastMessage = messages[messages.length - 1]
+
+    // Only speak bot/model messages, not system messages
+    if (lastMessage.sender !== "model" && lastMessage.sender !== "bot") return
+
+    // Prevent speaking the same message multiple times
+    const messageKey = `${lastMessage.id}-${lastMessage.text}`
+    if (lastProcessedMessageRef.current === messageKey) {
+      console.log("🔇 Skipping duplicate message:", lastMessage.text.substring(0, 50))
+      return
     }
-  }, [messages, isLoading]);
+
+    // Don't speak if already speaking
+    if (isSpeaking) {
+      console.log("🔇 Already speaking, skipping new message")
+      return
+    }
+
+    console.log("🎤 Processing new message for speech:", lastMessage.text.substring(0, 50))
+    lastProcessedMessageRef.current = messageKey
+
+    // Small delay to ensure message is rendered and avoid rapid-fire speaking
+    const timeoutId = setTimeout(() => {
+      speak(lastMessage.text)
+    }, 500)
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [messages, isLoading, speak, isSpeaking])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: "smooth", 
-        block: "end" 
-      });
+      messagesEndRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      })
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading])
 
   const handleNewChat = () => {
-    // Stop any ongoing speech
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-    }
-    clearChat();
-    setSidebarOpen(false);
-  };
+    stopSpeaking()
+    clearChat()
+    setSidebarOpen(false)
+    // Reset the last processed message when starting new chat
+    lastProcessedMessageRef.current = null
+  }
 
   const handleSelectChat = (chatIndex) => {
-    console.log("Selected chat:", chatIndex);
-    setSidebarOpen(false);
-    // TODO: Implement chat loading from history
-    // For now, just close sidebar
-  };
+    console.log("Selected chat:", chatIndex)
+    setSidebarOpen(false)
+    // Stop speaking when switching chats
+    stopSpeaking()
+    lastProcessedMessageRef.current = null
+  }
 
   const handleCloseSidebar = () => {
-    setSidebarOpen(false);
-  };
+    setSidebarOpen(false)
+  }
 
-  // Loading state
-  if (!messages) {
+  const handleSendMessage = async (text, imageBase64 = null) => {
+    // Stop any ongoing speech when sending a new message
+    stopSpeaking()
+    await sendMessage(text, imageBase64)
+  }
+
+  const handleRetryConnection = async () => {
+    setIsRetrying(true)
+    try {
+      await retryBackendConnection()
+    } catch (error) {
+      console.error("Retry failed:", error)
+    } finally {
+      setIsRetrying(false)
+    }
+  }
+
+  // Show loading state while checking backend
+  if (safeBackendStatus.checking && !safeBackendStatus.checked) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p className="text-lg">Loading conversation...</p>
+          <p className="text-lg">Checking Flask backend...</p>
         </div>
       </div>
-    );
+    )
   }
 
+  // Show Flask not running screen if backend is not available
+  if (safeBackendStatus.checked && !safeBackendStatus.running) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center space-x-3 mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-xl">A+</span>
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white">AURA+</h1>
+                <p className="text-white/60">AI Voice Assistant</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Flask Not Running Component */}
+          <FlaskNotRunning onRetry={handleRetryConnection} isRetrying={isRetrying} />
+        </div>
+      </div>
+    )
+  }
+
+  // Normal chat interface when backend is running
   return (
     <div className="flex h-screen overflow-hidden font-sans relative bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
       {/* Sidebar */}
@@ -473,31 +175,29 @@ function Chatbot() {
         {/* Chat Messages Area */}
         <main className="flex-1 overflow-hidden p-4 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id || Math.random()} message={msg} />
-            ))}
-            
-            {/* Loading indicator */}
-            {isLoading && (
-              <MessageBubble 
-                message={{ text: "Typing...", sender: "bot" }} 
-                isLoading={true} 
-              />
+            {/* Backend Status Warning - Show if backend was checked but not running */}
+            {safeBackendStatus.checked && !safeBackendStatus.running && (
+              <BackendStatus backendStatus={safeBackendStatus} onRetry={handleRetryConnection} />
             )}
-            
+
+            {messages &&
+              messages.map((msg) => (
+                <MessageBubble key={msg.id || Math.random()} message={msg} isSystem={msg.sender === "system"} />
+              ))}
+
+            {/* Loading indicator */}
+            {isLoading && <MessageBubble message={{ text: "Typing...", sender: "bot" }} isLoading={true} />}
+
             {/* Scroll target */}
             <div ref={messagesEndRef} className="h-1" />
           </div>
-          
+
           {/* Chat Input */}
-          <ChatInput 
-            onSendMessage={sendMessage} 
-            isLoading={isLoading} 
-          />
+          <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!safeBackendStatus.running} />
         </main>
       </div>
     </div>
-  );
+  )
 }
 
-export default Chatbot;
+export default Chatbot

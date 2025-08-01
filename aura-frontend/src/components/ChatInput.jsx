@@ -1,58 +1,260 @@
-// src/components/ChatInput.jsx
-import React, { useState } from 'react';
-import { PaperAirplaneIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
+"use client"
 
-function ChatInput({ onSendMessage, isLoading }) {
-  const [text, setText] = useState('');
+import { useState, useRef, useEffect } from "react"
+import { Send, Mic, MicOff, Upload, X, ImageIcon, AlertCircle } from "lucide-react"
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition"
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSendMessage(text);
-    setText('');
-  };
+function ChatInput({ onSendMessage, isLoading, disabled = false }) {
+  const { isListening, startListening, stopListening, transcript, resetTranscript } = useSpeechRecognition()
+  const [input, setInput] = useState("")
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const fileInputRef = useRef(null)
+  const textareaRef = useRef(null)
 
-  const handleVoiceInput = () => {
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
+  // Update input with speech transcript
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript)
+    }
+  }, [transcript])
 
-    recognition.onresult = (event) => onSendMessage(event.results[0][0].transcript);
-    recognition.onerror = (event) => console.error("Speech recognition error:", event.error);
-    
-    recognition.start();
-  };
+  const clearInputs = () => {
+    console.log("🧹 Clearing all inputs")
+    setInput("")
+    setSelectedImage(null)
+    setImagePreview(null)
+    resetTranscript() // Clear speech transcript
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+    // Focus back to textarea after clearing
+    if (textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    // Prevent submission if no content or if loading/disabled
+    if ((!input.trim() && !selectedImage) || isLoading || disabled) {
+      console.log("🚫 Submit prevented:", {
+        hasInput: !!input.trim(),
+        hasImage: !!selectedImage,
+        isLoading,
+        disabled,
+      })
+      return
+    }
+
+    console.log("📤 Submitting message:", {
+      text: input.trim(),
+      hasImage: !!selectedImage,
+    })
+
+    let imageBase64 = null
+    if (selectedImage) {
+      try {
+        // Convert image to base64
+        const reader = new FileReader()
+        imageBase64 = await new Promise((resolve, reject) => {
+          reader.onload = (e) => {
+            const base64 = e.target.result.split(",")[1] // Remove data:image/...;base64, prefix
+            resolve(base64)
+          }
+          reader.onerror = reject
+          reader.readAsDataURL(selectedImage)
+        })
+        console.log("🖼️ Image converted to base64")
+      } catch (error) {
+        console.error("❌ Error converting image:", error)
+        return
+      }
+    }
+
+    // Clear inputs BEFORE sending to prevent double submission
+    const messageText = input.trim()
+    clearInputs()
+
+    try {
+      // Send message with optional image
+      await onSendMessage(messageText, imageBase64)
+      console.log("✅ Message sent successfully")
+    } catch (error) {
+      console.error("❌ Error sending message:", error)
+      // If sending failed, restore the input
+      setInput(messageText)
+    }
+  }
+
+  // Handle image upload
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0]
+    if (file && file.type.startsWith("image/")) {
+      console.log("🖼️ Image selected:", file.name)
+      setSelectedImage(file)
+
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreview(e.target.result)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      console.log("❌ Invalid file selected")
+    }
+  }
+
+  // Remove selected image
+  const removeImage = () => {
+    console.log("🗑️ Removing selected image")
+    setSelectedImage(null)
+    setImagePreview(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  // Handle Enter key submission
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !disabled) {
+      e.preventDefault()
+      handleSubmit(e)
+    }
+  }
+
+  // Auto-resize textarea
+  const handleInputChange = (e) => {
+    const value = e.target.value
+    setInput(value)
+
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`
+    }
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Ask AURA+ anything..."
-          disabled={isLoading}
-          className="flex-1 w-full p-3 bg-white/5 border-none rounded-lg text-white placeholder:text-zinc-400 focus:ring-2 focus:ring-cyan-400 focus:outline-none transition-all"
-        />
-        <button 
-          type="button" 
-          onClick={handleVoiceInput} 
-          disabled={isLoading} 
-          className="p-3 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition-colors"
-          aria-label="Use voice"
-        >
-          <MicrophoneIcon className="w-6 h-6 text-cyan-300" />
-        </button>
-        <button 
-          type="submit" 
-          disabled={isLoading || !text.trim()} 
-          className="p-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90 disabled:opacity-50 disabled:from-zinc-600 disabled:to-zinc-700 transition-opacity"
-          aria-label="Send message"
-        >
-          <PaperAirplaneIcon className="w-6 h-6 text-white" />
-        </button>
-      </div>
-    </form>
-  );
+    <div className="mt-4 space-y-3">
+      {/* Backend Disabled Warning */}
+      {disabled && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+          <div className="flex items-center space-x-2 text-red-400">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm">Chat disabled - Flask backend not running</span>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview */}
+      {imagePreview && (
+        <div className="bg-black/20 backdrop-blur-lg border border-white/10 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-white/80 flex items-center">
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Image attached
+            </span>
+            <button onClick={removeImage} className="text-white/60 hover:text-white/80 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <img
+            src={imagePreview || "/placeholder.svg"}
+            alt="Upload preview"
+            className="max-h-32 rounded-lg border border-white/10"
+          />
+        </div>
+      )}
+
+      {/* Input Form */}
+      <form onSubmit={handleSubmit} className="relative">
+        <div className="flex items-end space-x-2">
+          {/* Hidden file input */}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+
+          {/* Image Upload Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled}
+            className={`flex-shrink-0 p-3 rounded-xl transition-all border ${
+              disabled
+                ? "text-white/30 border-white/10 cursor-not-allowed"
+                : "text-white/70 hover:text-white hover:bg-white/10 border-white/20"
+            }`}
+            title="Upload Image"
+          >
+            <Upload className="w-5 h-5" />
+          </button>
+
+          {/* Voice Input Button */}
+          <button
+            type="button"
+            onClick={isListening ? stopListening : startListening}
+            disabled={disabled}
+            className={`flex-shrink-0 p-3 rounded-xl transition-all border ${
+              disabled
+                ? "text-white/30 border-white/10 cursor-not-allowed"
+                : isListening
+                  ? "bg-red-500/20 text-red-400 border-red-400/50 animate-pulse"
+                  : "text-white/70 hover:text-white hover:bg-white/10 border-white/20"
+            }`}
+            title={isListening ? "Stop Listening" : "Start Voice Input"}
+          >
+            {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          </button>
+
+          {/* Text Input */}
+          <div className="flex-1">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                disabled ? "Start Flask backend to enable chat..." : "Type your message or use voice input..."
+              }
+              disabled={disabled}
+              className={`w-full px-4 py-3 bg-black/20 backdrop-blur-lg border rounded-xl text-white placeholder-white/50 resize-none transition-all ${
+                disabled
+                  ? "border-white/10 cursor-not-allowed opacity-50"
+                  : "border-white/20 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+              }`}
+              rows="1"
+              style={{ minHeight: "48px", maxHeight: "120px" }}
+            />
+          </div>
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={(!input.trim() && !selectedImage) || isLoading || disabled}
+            className="flex-shrink-0 p-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+          >
+            <Send className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Voice Recognition Status */}
+        {isListening && !disabled && (
+          <div className="mt-2 text-sm text-blue-400 flex items-center">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-2"></div>
+            Listening... Speak now
+          </div>
+        )}
+
+        {/* Loading Status */}
+        {isLoading && (
+          <div className="mt-2 text-sm text-blue-400 flex items-center">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+            Sending message...
+          </div>
+        )}
+      </form>
+    </div>
+  )
 }
 
-export default ChatInput;
+export default ChatInput
