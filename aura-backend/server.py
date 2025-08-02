@@ -535,6 +535,72 @@ def api_clear_chat():
         print(f"❌ Error clearing chat: {e}")
         return create_json_response({"error": str(e)}, 500)
 
+# --- Missing API Routes ---
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    print("🎯 API health endpoint hit")
+    return create_json_response({
+        "status": "healthy",
+        "environment": "production" if IS_PROD else "development",
+        "firebase_connected": db is not None,
+        "gemini_connected": model is not None,
+        "cors_origins": allowed_origins,
+        "features": {
+            "multi_user": True,
+            "authentication": True,
+            "admin_panel": True,
+            "user_profiles": True
+        }
+    })
+
+@app.route('/api/chat/messages', methods=['GET'])
+@require_auth
+def get_chat_messages():
+    print("🎯 API get chat messages endpoint hit")
+    try:
+        user_id = session['user_id']
+        print(f"👤 Getting messages for user: {session['username']} ({user_id})")
+        
+        if not db:
+            print("❌ Database not available")
+            return create_json_response({"error": "Database not available."}, 500)
+        
+        chat_ref = db.collection('users').document(user_id).collection('chats').document('current')
+        chat_doc = chat_ref.get()
+        
+        if chat_doc.exists:
+            messages = chat_doc.to_dict().get('messages', [])
+            print(f"📜 Retrieved {len(messages)} messages for user: {session['username']}")
+            return create_json_response({"messages": messages})
+        else:
+            print(f"📭 No chat messages found for user: {session['username']}")
+            return create_json_response({"messages": []})
+            
+    except Exception as e:
+        print(f"❌ Error in get_chat_messages: {e}")
+        return create_json_response({"error": f"Failed to get messages: {str(e)}"}, 500)
+
+@app.route('/api/chat/clear', methods=['POST'])
+@require_auth
+def clear_chat_messages():
+    print("🎯 API clear chat messages endpoint hit")
+    try:
+        user_id = session['user_id']
+        print(f"🗑️ Clearing chat messages for user: {session['username']} ({user_id})")
+        
+        if not db:
+            return create_json_response({"error": "Database not available."}, 500)
+        
+        chat_ref = db.collection('users').document(user_id).collection('chats').document('current')
+        chat_ref.set({"messages": [], "updated_at": datetime.utcnow()})
+        
+        print(f"✅ Chat messages cleared for user: {session['username']}")
+        return create_json_response({"success": True, "message": "Chat cleared successfully"})
+        
+    except Exception as e:
+        print(f"❌ Error clearing chat messages: {e}")
+        return create_json_response({"error": str(e)}, 500)
+
 # --- Admin Routes ---
 @app.route('/api/admin/users', methods=['GET'])
 @require_admin
