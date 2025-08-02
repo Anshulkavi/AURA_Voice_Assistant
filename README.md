@@ -27,10 +27,6 @@ AURA/
 │ ├── firebase-service-account.json
 │ └── .env # Environment variables
 
-yaml
-Copy
-Edit
-
 ---
 
 ## ⚙️ Features
@@ -63,57 +59,33 @@ Edit
 cd aura-backend
 Install dependencies:
 
-bash
-Copy
-Edit
 pip install -r requirements.txt
 Add your Firebase credentials:
 
 Paste your Firebase Admin SDK JSON into a file:
 
-bash
-Copy
-Edit
 firebase-service-account.json
 Or paste it directly into .env:
 
-env
-Copy
-Edit
 FIREBASE_SERVICE_ACCOUNT_JSON={...}
 Set your .env:
 
-env
-Copy
-Edit
 GOOGLE_API_KEY=your_gemini_api_key
 FIREBASE_SERVICE_ACCOUNT_JSON=your_json_or_empty_if_using_file
 Run the server locally:
 
-bash
-Copy
-Edit
 python app.py
 Runs at: http://localhost:5000
 
 🌐 Frontend Setup (React)
 Navigate to frontend:
 
-bash
-Copy
-Edit
 cd aura-frontend
 Install dependencies:
 
-bash
-Copy
-Edit
 npm install
 Run the app:
 
-bash
-Copy
-Edit
 npm run dev
 Runs at: http://localhost:5173
 
@@ -153,23 +125,15 @@ Route	Method	Description
 / (fallback)	GET	Serve React frontend
 
 🔐 Environment Variables (.env)
-env
-Copy
-Edit
+
 GOOGLE_API_KEY=your_gemini_api_key
 FIREBASE_SERVICE_ACCOUNT_JSON=your_firebase_json_or_leave_empty
 🧪 Testing Locally
 React calls Flask via:
 
-js
-Copy
-Edit
 const API_URL = import.meta.env.PROD ? "/api" : "http://localhost:5000/api";
 Ensure CORS is enabled in app.py:
 
-python
-Copy
-Edit
 from flask_cors import CORS
 CORS(app, supports_credentials=True)
 🧠 Credits
@@ -184,16 +148,3 @@ Auth/DB: Firebase
 📜 License
 MIT © Anshul Kavishwar
 
-yaml
-Copy
-Edit
-
----
-
-Let me know if you want:
-- Hindi version
-- Minimal version
-- Screenshots or badges
-- Video demo section
-
-I'll update it accordingly.
