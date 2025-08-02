@@ -12,7 +12,22 @@ import { useChat } from "../hooks/useChat"
 import { useSpeechSynthesis } from "../hooks/useSpeechSynthesis"
 
 function Chatbot() {
-  const { messages, isLoading, sendMessage, history, clearChat, backendStatus, retryBackendConnection } = useChat()
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    history,
+    clearChat,
+    backendStatus,
+    retryBackendConnection,
+    chatSessions,
+    currentChatId,
+    createNewChat,
+    selectChat,
+    deleteChat,
+    renameChat,
+  } = useChat()
+
   const { speak, stop: stopSpeaking, isSpeaking } = useSpeechSynthesis()
   const messagesEndRef = useRef(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -73,19 +88,34 @@ function Chatbot() {
   }, [messages, isLoading])
 
   const handleNewChat = () => {
+    console.log("🆕 Creating new chat from Chatbot component")
     stopSpeaking()
-    clearChat()
+    createNewChat() // Use the new createNewChat function
     setSidebarOpen(false)
     // Reset the last processed message when starting new chat
     lastProcessedMessageRef.current = null
   }
 
-  const handleSelectChat = (chatIndex) => {
-    console.log("Selected chat:", chatIndex)
-    setSidebarOpen(false)
-    // Stop speaking when switching chats
+  const handleSelectChat = (chatId) => {
+    console.log("📱 Selecting chat from Chatbot component:", chatId)
     stopSpeaking()
+    selectChat(chatId) // Use the new selectChat function
+    setSidebarOpen(false)
+    // Reset speech tracking when switching chats
     lastProcessedMessageRef.current = null
+  }
+
+  const handleDeleteChat = (chatId) => {
+    console.log("🗑️ Deleting chat from Chatbot component:", chatId)
+    stopSpeaking()
+    deleteChat(chatId)
+    // Reset speech tracking
+    lastProcessedMessageRef.current = null
+  }
+
+  const handleRenameChat = (chatId, newTitle) => {
+    console.log("✏️ Renaming chat from Chatbot component:", chatId, "to:", newTitle)
+    renameChat(chatId, newTitle)
   }
 
   const handleCloseSidebar = () => {
@@ -156,6 +186,10 @@ function Chatbot() {
         history={history}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
+        currentChatId={currentChatId}
+        chatSessions={chatSessions}
       />
 
       {/* Main Chat Container */}

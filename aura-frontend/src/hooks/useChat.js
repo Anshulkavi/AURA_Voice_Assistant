@@ -115,6 +115,29 @@ const DEFAULT_BACKEND_STATUS = {
   responseType: null,
 }
 
+// Generate unique chat ID
+const generateChatId = () => {
+  return `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+// Generate chat title from messages
+const generateChatTitle = (messages) => {
+  if (!messages || messages.length === 0) {
+    const now = new Date()
+    return `Chat ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+  }
+
+  // Find first user message
+  const firstUserMessage = messages.find((msg) => msg.sender === "user")
+  if (firstUserMessage && firstUserMessage.text) {
+    const text = firstUserMessage.text.trim()
+    return text.length > 30 ? text.substring(0, 30) + "..." : text
+  }
+
+  const now = new Date()
+  return `Chat ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+}
+
 export function useChat() {
   const [messages, setMessages] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -122,6 +145,184 @@ export function useChat() {
   const [conversationId, setConversationId] = useState(null)
   const [connectionError, setConnectionError] = useState(null)
   const [backendStatus, setBackendStatus] = useState(DEFAULT_BACKEND_STATUS)
+
+  // Chat session management
+  const [chatSessions, setChatSessions] = useState([])
+  const [currentChatId, setCurrentChatId] = useState(null)
+
+  // Load chat sessions from localStorage
+  useEffect(() => {
+    const savedSessions = localStorage.getItem("aura_chat_sessions")
+    if (savedSessions) {
+      try {
+        const sessions = JSON.parse(savedSessions)
+        console.log("📚 Loaded chat sessions from localStorage:", sessions.length)
+        setChatSessions(sessions)
+      } catch (error) {
+        console.error("❌ Error loading chat sessions:", error)
+        setChatSessions([])
+      }
+    }
+  }, [])
+
+  // Save chat sessions to localStorage
+  const saveChatSessions = useCallback((sessions) => {
+    try {
+      localStorage.setItem("aura_chat_sessions", JSON.stringify(sessions))
+      console.log("💾 Saved chat sessions to localStorage:", sessions.length)
+    } catch (error) {
+      console.error("❌ Error saving chat sessions:", error)
+    }
+  }, [])
+
+  // Save current chat session
+  const saveCurrentChatSession = useCallback(() => {
+    if (!currentChatId || !messages || messages.length === 0) {
+      return
+    }
+
+    // Filter out system messages for saving
+    const messagesToSave = messages.filter((msg) => msg.sender !== "system")
+
+    if (messagesToSave.length === 0) {
+      return
+    }
+
+    const currentSession = {
+      id: currentChatId,
+      timestamp: Date.now(),
+      messages: messagesToSave,
+      title: generateChatTitle(messagesToSave),
+      lastUpdated: Date.now(),
+    }
+
+    console.log("💾 Saving current chat session:", currentChatId, "with", messagesToSave.length, "messages")
+
+    setChatSessions((prev) => {
+      // Remove existing session with same ID and add updated one at the beginning
+      const filtered = prev.filter((s) => s.id !== currentChatId)
+      const updated = [currentSession, ...filtered]
+      saveChatSessions(updated)
+      return updated
+    })
+  }, [currentChatId, messages, saveChatSessions])
+
+  // Create a new chat session
+  const createNewChatSession = useCallback(() => {
+    // Save current session first
+    saveCurrentChatSession()
+
+    const newChatId = generateChatId()
+    console.log("🆕 Creating new chat session:", newChatId)
+
+    // Set new session as current
+    setCurrentChatId(newChatId)
+    setConversationId(newChatId)
+    setMessages([
+      {
+        id: 0,
+        text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?",
+        sender: "bot",
+      },
+    ])
+    setHistory([])
+    setConnectionError(null)
+
+    return newChatId
+  }, [saveCurrentChatSession])
+
+  // Load a specific chat session
+  const loadChatSession = useCallback(
+    (chatId) => {
+      if (chatId === currentChatId) {
+        console.log("📱 Already on chat:", chatId)
+        return
+      }
+
+      console.log("📱 Loading chat session:", chatId)
+
+      // Save current session first
+      saveCurrentChatSession()
+
+      // Find and load the requested session
+      const session = chatSessions.find((s) => s.id === chatId)
+      if (session) {
+        setCurrentChatId(chatId)
+        setConversationId(chatId)
+
+        // Load messages or show welcome message
+        const loadedMessages =
+          session.messages && session.messages.length > 0
+            ? session.messages
+            : [
+                {
+                  id: 0,
+                  text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?",
+                  sender: "bot",
+                },
+              ]
+
+        setMessages(loadedMessages)
+        setHistory([]) // Clear current history as we're loading from localStorage
+        setConnectionError(null)
+        console.log("✅ Chat session loaded:", chatId, "with", loadedMessages.length, "messages")
+      } else {
+        console.error("❌ Chat session not found:", chatId)
+        // Create new session if not found
+        createNewChatSession()
+      }
+    },
+    [currentChatId, chatSessions, saveCurrentChatSession, createNewChatSession],
+  )
+
+  // Delete a chat session
+  const deleteChatSession = useCallback(
+    (chatId) => {
+      console.log("🗑️ Deleting chat session:", chatId)
+
+      setChatSessions((prev) => {
+        const updated = prev.filter((s) => s.id !== chatId)
+        saveChatSessions(updated)
+        console.log("✅ Chat session deleted, remaining:", updated.length)
+        return updated
+      })
+
+      // If deleting current chat, create a new one
+      if (chatId === currentChatId) {
+        console.log("🔄 Deleted current chat, creating new one")
+        createNewChatSession()
+      }
+    },
+    [currentChatId, saveChatSessions, createNewChatSession],
+  )
+
+  // Rename a chat session
+  const renameChatSession = useCallback(
+    (chatId, newTitle) => {
+      console.log("✏️ Renaming chat session:", chatId, "to:", newTitle)
+
+      setChatSessions((prev) => {
+        const updated = prev.map((session) =>
+          session.id === chatId ? { ...session, title: newTitle, lastUpdated: Date.now() } : session,
+        )
+        saveChatSessions(updated)
+        return updated
+      })
+    },
+    [saveChatSessions],
+  )
+
+  // Auto-save current session when messages change
+  useEffect(() => {
+    if (currentChatId && messages && messages.length > 1) {
+      // Debounce saving to avoid too frequent saves
+      const timeoutId = setTimeout(() => {
+        saveCurrentChatSession()
+      }, 2000)
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [messages, currentChatId, saveCurrentChatSession])
 
   // Check backend health
   const checkBackend = useCallback(async (isRetry = false) => {
@@ -193,10 +394,17 @@ export function useChat() {
     }
   }, [])
 
-  // Initial backend check
+  // Initial backend check and session setup
   useEffect(() => {
     checkBackend()
-  }, [checkBackend])
+
+    // Create initial chat session if none exists
+    if (!currentChatId) {
+      const newChatId = generateChatId()
+      setCurrentChatId(newChatId)
+      setConversationId(newChatId)
+    }
+  }, [checkBackend, currentChatId])
 
   const fetchHistory = useCallback(async () => {
     // Only fetch if backend is confirmed running
@@ -283,14 +491,10 @@ export function useChat() {
 
   // Fetch history when backend becomes available
   useEffect(() => {
-    if (!conversationId) {
-      setConversationId(Date.now().toString())
-    }
-
-    if (backendStatus.checked && backendStatus.running) {
+    if (backendStatus.checked && backendStatus.running && !messages) {
       fetchHistory()
     }
-  }, [fetchHistory, conversationId, backendStatus.checked, backendStatus.running])
+  }, [fetchHistory, backendStatus.checked, backendStatus.running, messages])
 
   const sendMessage = useCallback(
     async (prompt, imageBase64 = null) => {
@@ -391,17 +595,10 @@ export function useChat() {
   )
 
   const clearChat = useCallback(async () => {
+    // Create new chat session
+    createNewChatSession()
+
     if (!backendStatus.running) {
-      // Just clear locally if backend not running
-      setConversationId(Date.now().toString())
-      setMessages([
-        {
-          id: 0,
-          text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?",
-          sender: "bot",
-        },
-      ])
-      setHistory([])
       return
     }
 
@@ -416,31 +613,11 @@ export function useChat() {
         signal: createTimeoutSignal(10000),
       })
 
-      // Clear locally regardless of API response
-      setConversationId(Date.now().toString())
-      setMessages([
-        {
-          id: 0,
-          text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?",
-          sender: "bot",
-        },
-      ])
-      setHistory([])
       setConnectionError(null)
     } catch (error) {
       console.error("Error clearing chat:", error)
-      // Still clear locally
-      setConversationId(Date.now().toString())
-      setMessages([
-        {
-          id: 0,
-          text: "Hello! Main AURA+ hoon. Aapki kya madad kar sakta hoon?",
-          sender: "bot",
-        },
-      ])
-      setHistory([])
     }
-  }, [backendStatus.running])
+  }, [backendStatus.running, createNewChatSession])
 
   // Retry backend connection
   const retryBackendConnection = useCallback(async () => {
@@ -456,7 +633,14 @@ export function useChat() {
     clearChat,
     conversationId,
     connectionError,
-    backendStatus: backendStatus || DEFAULT_BACKEND_STATUS, // Ensure it's never undefined
+    backendStatus: backendStatus || DEFAULT_BACKEND_STATUS,
     retryBackendConnection,
+    // Chat session management
+    chatSessions,
+    currentChatId,
+    createNewChat: createNewChatSession,
+    selectChat: loadChatSession,
+    deleteChat: deleteChatSession,
+    renameChat: renameChatSession,
   }
 }
