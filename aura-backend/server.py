@@ -19,7 +19,9 @@ import secrets
 load_dotenv()
 
 # Create Flask app
-app = Flask(__name__, static_folder='dist', static_url_path='')
+# Calculate the absolute path to the frontend's build directory
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'aura-frontend', 'dist'))
+app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))
 
 # --- Environment Detection ---
