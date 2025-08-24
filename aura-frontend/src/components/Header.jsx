@@ -23,11 +23,10 @@
 //   );
 // }
 
-
 // components/Header.jsx
-import { Link } from 'react-router-dom';
-import { Menu, X, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { Link } from "react-router-dom";
+import { Menu, X, Sparkles } from "lucide-react";
+import { useState } from "react";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -47,28 +46,46 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            <a href="#features" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+            <a
+              href="#features"
+              className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+            >
               Features
             </a>
-            <a href="#use-cases" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+            <a
+              href="#use-cases"
+              className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+            >
               Use Cases
             </a>
-            <a href="#how-it-works" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+            <a
+              href="#how-it-works"
+              className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+            >
               How It Works
             </a>
-            <a href="#download" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+            <a
+              href="#download"
+              className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+            >
               Download
             </a>
           </nav>
 
           {/* Desktop Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <button className="px-4 py-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium transition-colors">
+            <Link
+              to="/login"
+              className="px-4 py-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 font-medium transition-colors"
+            >
               Login
-            </button>
-            <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl">
+            </Link>
+            <Link
+              to="/register"
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full hover:from-purple-700 hover:to-pink-700 transition-all duration-300 font-medium shadow-lg hover:shadow-xl"
+            >
               Sign up
-            </button>
+            </Link>
           </div>
 
           {/* Mobile Menu Button */}
@@ -84,25 +101,43 @@ export default function Header() {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800">
             <div className="flex flex-col space-y-4">
-              <a href="#features" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+              <a
+                href="#features"
+                className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+              >
                 Features
               </a>
-              <a href="#use-cases" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+              <a
+                href="#use-cases"
+                className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+              >
                 Use Cases
               </a>
-              <a href="#how-it-works" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+              <a
+                href="#how-it-works"
+                className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+              >
                 How It Works
               </a>
-              <a href="#download" className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium">
+              <a
+                href="#download"
+                className="text-gray-700 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors font-medium"
+              >
                 Download
               </a>
               <div className="flex flex-col space-y-2 pt-4 border-t border-gray-200 dark:border-gray-800">
-                <button className="text-left px-4 py-2 text-purple-600 dark:text-purple-400 font-medium">
+                <Link
+                  to="/login"
+                  className="text-left px-4 py-2 text-purple-600 dark:text-purple-400 font-medium"
+                >
                   Login
-                </button>
-                <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-medium shadow-lg">
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full font-medium shadow-lg text-center"
+                >
                   Sign up
-                </button>
+                </Link>
               </div>
             </div>
           </div>
