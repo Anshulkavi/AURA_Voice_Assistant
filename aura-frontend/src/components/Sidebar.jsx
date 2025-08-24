@@ -312,9 +312,9 @@
 
 // export default Sidebar
 
-"use client"
+"use client";
 
-import { useState, useRef, useEffect, createContext, useContext } from "react"
+import { useState, useRef, useEffect, createContext, useContext } from "react";
 import {
   Plus,
   MessageSquare,
@@ -325,16 +325,16 @@ import {
   MoreVertical,
   Settings,
   HelpCircle,
-} from "lucide-react"
+} from "lucide-react";
 
 // Context to share the expanded state with child components
-const SidebarContext = createContext()
+const SidebarContext = createContext();
 
 function Sidebar({
   children,
-  isOpen,         // For mobile view (slide in/out)
-  onClose,        // For mobile view
-  isExpanded,     // For desktop view (expanded/collapsed)
+  isOpen, // For mobile view (slide in/out)
+  onClose, // For mobile view
+  isExpanded, // For desktop view (expanded/collapsed)
   onToggleExpand, // For desktop view
   onNewChat,
   chatSessions = [],
@@ -348,56 +348,87 @@ function Sidebar({
       {/* 1. Mobile Overlay */}
       <div
         onClick={onClose}
-        className={`fixed inset-0 bg-black/50 z-40 md:hidden ${isOpen ? "block" : "hidden"}`}
+        className={`fixed inset-0 bg-black/50 z-40 md:hidden ${
+          isOpen ? "block" : "hidden"
+        }`}
       />
 
       {/* 2. Sidebar Container */}
-      <aside
+      {/* <aside
         className={`fixed top-0 left-0 h-full bg-gray-900/70 backdrop-blur-lg text-white z-50 flex flex-col transition-all duration-300 ease-in-out
           ${isExpanded ? "w-72" : "md:w-20"} 
           ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+      > */}
+      <aside
+        className={`h-full bg-gray-900/70 backdrop-blur-lg text-white flex flex-col transition-all duration-300 ease-in-out
+    ${isExpanded ? "w-72" : "md:w-20"} 
+    ${
+      isOpen
+        ? "fixed top-0 left-0 z-50 translate-x-0"
+        : "fixed top-0 left-0 -translate-x-full md:static md:translate-x-0"
+    }`}
       >
         <SidebarContext.Provider value={{ isExpanded }}>
           <div className="flex flex-col h-full">
             {/* Top Section: Menu and New Chat */}
-            <div className={`p-4 flex items-center ${isExpanded ? "justify-between" : "justify-center"}`}>
+            <div
+              className={`p-4 flex items-center ${
+                isExpanded ? "justify-between" : "justify-center"
+              }`}
+            >
               {/* Hamburger menu for desktop */}
-              <button onClick={onToggleExpand} className="hidden md:block p-2 text-gray-400 hover:text-white">
+              <button
+                onClick={onToggleExpand}
+                className="hidden md:block p-2 text-gray-400 hover:text-white"
+              >
                 <Menu size={20} />
               </button>
               {/* Close button for mobile */}
-              <button onClick={onClose} className="md:hidden p-2 text-gray-400 hover:text-white">
+              <button
+                onClick={onClose}
+                className="md:hidden p-2 text-gray-400 hover:text-white"
+              >
                 <X size={20} />
               </button>
-              
+
               {isExpanded && (
-                  <button onClick={onNewChat} className="p-2 text-gray-400 hover:text-white">
-                    <Plus size={20} />
-                  </button>
+                <button
+                  onClick={onNewChat}
+                  className="p-2 text-gray-400 hover:text-white"
+                >
+                  <Plus size={20} />
+                </button>
               )}
             </div>
 
             {/* New Chat button (when collapsed) */}
             {!isExpanded && (
-                <div className="px-4 py-2">
-                    <SidebarItem icon={<Plus size={20} />} text="New Chat" onClick={onNewChat} />
-                </div>
+              <div className="px-4 py-2">
+                <SidebarItem
+                  icon={<Plus size={20} />}
+                  text="New Chat"
+                  onClick={onNewChat}
+                />
+              </div>
             )}
-
 
             {/* Middle Section: Chat History */}
             <div className="flex-1 overflow-y-auto px-4 space-y-2">
-                {isExpanded && <h2 className="px-4 py-2 text-sm font-semibold text-gray-400">Recent</h2>}
-                {chatSessions.map(chat => (
-                    <SidebarChatItem
-                        key={chat.id}
-                        chat={chat}
-                        isActive={currentChatId === chat.id}
-                        onSelect={() => onSelectChat(chat.id)}
-                        onDelete={() => onDeleteChat(chat.id)}
-                        onRename={(newName) => onRenameChat(chat.id, newName)}
-                    />
-                ))}
+              {isExpanded && (
+                <h2 className="px-4 py-2 text-sm font-semibold text-gray-400">
+                  Recent
+                </h2>
+              )}
+              {chatSessions.map((chat) => (
+                <SidebarChatItem
+                  key={chat.id}
+                  chat={chat}
+                  isActive={currentChatId === chat.id}
+                  onSelect={() => onSelectChat(chat.id)}
+                  onDelete={() => onDeleteChat(chat.id)}
+                  onRename={(newName) => onRenameChat(chat.id, newName)}
+                />
+              ))}
             </div>
 
             {/* Bottom Section: Settings & Help */}
@@ -409,12 +440,12 @@ function Sidebar({
         </SidebarContext.Provider>
       </aside>
     </>
-  )
+  );
 }
 
 // Reusable item for the sidebar
 function SidebarItem({ icon, text, active, alert, onClick }) {
-  const { isExpanded } = useContext(SidebarContext)
+  const { isExpanded } = useContext(SidebarContext);
   return (
     <div
       onClick={onClick}
@@ -423,26 +454,36 @@ function SidebarItem({ icon, text, active, alert, onClick }) {
         ${isExpanded ? "w-full" : "w-auto"}`}
     >
       {icon}
-      <span className={`overflow-hidden transition-all ${isExpanded ? "w-52 ml-3" : "w-0"}`}>
+      <span
+        className={`overflow-hidden transition-all ${
+          isExpanded ? "w-52 ml-3" : "w-0"
+        }`}
+      >
         {text}
       </span>
-      {alert && <div className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${isExpanded ? "" : "top-2"}`} />}
-      
+      {alert && (
+        <div
+          className={`absolute right-2 w-2 h-2 rounded bg-indigo-400 ${
+            isExpanded ? "" : "top-2"
+          }`}
+        />
+      )}
+
       {!isExpanded && (
         <div className="absolute left-full rounded-md px-2 py-1 ml-6 bg-gray-900 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0">
           {text}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // Specialized item for chat history with actions
 function SidebarChatItem({ chat, isActive, onSelect, onDelete, onRename }) {
-  const { isExpanded } = useContext(SidebarContext)
-  const [isEditing, setIsEditing] = useState(false)
-  const [title, setTitle] = useState(chat.title || "New Chat")
-  const [showActions, setShowActions] = useState(false)
+  const { isExpanded } = useContext(SidebarContext);
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(chat.title || "New Chat");
+  const [showActions, setShowActions] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -456,20 +497,20 @@ function SidebarChatItem({ chat, isActive, onSelect, onDelete, onRename }) {
     e.preventDefault();
     e.stopPropagation();
     if (title.trim()) {
-        onRename(title.trim());
+      onRename(title.trim());
     }
     setIsEditing(false);
-  }
+  };
 
   const handleStartEditing = (e) => {
     e.stopPropagation();
     setIsEditing(true);
-  }
+  };
 
   const handleDelete = (e) => {
     e.stopPropagation();
     onDelete();
-  }
+  };
 
   return (
     <div
@@ -478,29 +519,45 @@ function SidebarChatItem({ chat, isActive, onSelect, onDelete, onRename }) {
         ${isActive ? "bg-gray-700" : "hover:bg-gray-800"}`}
     >
       <MessageSquare size={20} className="flex-shrink-0 text-gray-400" />
-      <div className={`overflow-hidden transition-all ${isExpanded ? "w-full ml-3" : "w-0"}`}>
+      <div
+        className={`overflow-hidden transition-all ${
+          isExpanded ? "w-full ml-3" : "w-0"
+        }`}
+      >
         {isEditing ? (
-            <form onSubmit={handleRename}>
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={handleRename}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent border-b border-gray-500 focus:outline-none focus:border-blue-500 text-sm"
-                />
-            </form>
+          <form onSubmit={handleRename}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleRename}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-transparent border-b border-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+            />
+          </form>
         ) : (
-            <p className="text-sm truncate text-gray-200">{chat.title || "New Chat"}</p>
+          <p className="text-sm truncate text-gray-200">
+            {chat.title || "New Chat"}
+          </p>
         )}
       </div>
 
       {/* Action buttons appear on hover when expanded */}
       {isExpanded && !isEditing && (
         <div className="absolute right-2 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={handleStartEditing} className="p-1 hover:text-white text-gray-400"><Edit3 size={14}/></button>
-          <button onClick={handleDelete} className="p-1 hover:text-white text-gray-400"><Trash2 size={14}/></button>
+          <button
+            onClick={handleStartEditing}
+            className="p-1 hover:text-white text-gray-400"
+          >
+            <Edit3 size={14} />
+          </button>
+          <button
+            onClick={handleDelete}
+            className="p-1 hover:text-white text-gray-400"
+          >
+            <Trash2 size={14} />
+          </button>
         </div>
       )}
 
@@ -511,7 +568,7 @@ function SidebarChatItem({ chat, isActive, onSelect, onDelete, onRename }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default Sidebar
+export default Sidebar;

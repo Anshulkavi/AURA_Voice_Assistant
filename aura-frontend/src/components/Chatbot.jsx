@@ -272,7 +272,6 @@
 //   const [isRetrying, setIsRetrying] = useState(false)
 //   const lastProcessedMessageRef = useRef(null)
 
-
 //   const safeBackendStatus = backendStatus || {
 //     running: false,
 //     checked: false,
@@ -285,11 +284,11 @@
 
 //     const lastMessage = messages[messages.length - 1]
 //     if (lastMessage.sender !== "model" && lastMessage.sender !== "bot") return
-    
+
 //     const messageKey = `${lastMessage.id}-${lastMessage.text}`
 //     if (lastProcessedMessageRef.current === messageKey) return
 //     if (isSpeaking) return
-    
+
 //     lastProcessedMessageRef.current = messageKey
 
 //     const timeoutId = setTimeout(() => {
@@ -342,7 +341,7 @@
 //     stopSpeaking()
 //     await sendMessage(text, imageBase64)
 //   }
-  
+
 //   const handleRetryConnection = async () => {
 //     setIsRetrying(true)
 //     try {
@@ -440,7 +439,7 @@
 //   } = useChat()
 
 //   const { speak, stop: stopSpeaking, isSpeaking, isSpeechEnabled } = useSpeech()
-  
+
 //   // State for sidebar visibility
 //   const [sidebarOpen, setSidebarOpen] = useState(false)       // For mobile slide-in
 //   const [sidebarExpanded, setSidebarExpanded] = useState(true) // For desktop expand/collapse
@@ -502,7 +501,7 @@
 //     stopSpeaking()
 //     await sendMessage(text, imageBase64)
 //   }
-  
+
 //   const handleRetryConnection = async () => {
 //     setIsRetrying(true)
 //     try {
@@ -556,7 +555,7 @@
 //         }`}
 //       >
 //         <main className="flex-1 flex flex-col overflow-hidden p-4 min-h-0 text-white">
-          
+
 //           {/* Header for the chat area, containing the mobile menu button */}
 //           <header className="flex-shrink-0 mb-4 md:hidden">
 //               <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-300 hover:text-white">
@@ -578,7 +577,7 @@
 
 //             <div ref={messagesEndRef} className="h-1" />
 //           </div>
-          
+
 //           {/* Chat input container */}
 //           <div className="flex-shrink-0 pt-4">
 //             <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!safeBackendStatus.running} />
@@ -677,7 +676,7 @@
 //     stopSpeaking();
 //     await sendMessage(text, imageBase64);
 //   };
-  
+
 //   const handleRetryConnection = async () => {
 //     setIsRetrying(true);
 //     try {
@@ -735,7 +734,7 @@
 //             {isLoading && <MessageBubble message={{ text: "Typing...", sender: "bot" }} isLoading={true} />}
 //             <div ref={messagesEndRef} />
 //           </div>
-          
+
 //           <div className="flex-shrink-0 pt-4">
 //             <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!safeBackendStatus.running} />
 //           </div>
@@ -759,8 +758,25 @@ import { useChat } from "../hooks/useChat";
 import { useSpeech } from "../contexts/SpeechContext";
 
 function Chatbot({ sidebarOpen, setSidebarOpen }) {
-  const { messages, isLoading, sendMessage, backendStatus, retryBackendConnection, chatSessions, currentChatId, createNewChat, selectChat, deleteChat, renameChat } = useChat();
-  const { speak, stop: stopSpeaking, isSpeaking, isSpeechEnabled } = useSpeech();
+  const {
+    messages,
+    isLoading,
+    sendMessage,
+    backendStatus,
+    retryBackendConnection,
+    chatSessions,
+    currentChatId,
+    createNewChat,
+    selectChat,
+    deleteChat,
+    renameChat,
+  } = useChat();
+  const {
+    speak,
+    stop: stopSpeaking,
+    isSpeaking,
+    isSpeechEnabled,
+  } = useSpeech();
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const messagesEndRef = useRef(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -774,7 +790,8 @@ function Chatbot({ sidebarOpen, setSidebarOpen }) {
   };
 
   useEffect(() => {
-    if (!isSpeechEnabled || !messages || messages.length === 0 || isLoading) return;
+    if (!isSpeechEnabled || !messages || messages.length === 0 || isLoading)
+      return;
     const lastMessage = messages[messages.length - 1];
     if (lastMessage.sender !== "model" && lastMessage.sender !== "bot") return;
     const messageKey = `${lastMessage.id}-${lastMessage.text}`;
@@ -819,7 +836,7 @@ function Chatbot({ sidebarOpen, setSidebarOpen }) {
     stopSpeaking();
     await sendMessage(text, imageBase64);
   };
-  
+
   const handleRetryConnection = async () => {
     setIsRetrying(true);
     try {
@@ -843,24 +860,62 @@ function Chatbot({ sidebarOpen, setSidebarOpen }) {
   }
 
   if (safeBackendStatus.checked && !safeBackendStatus.running) {
-    return ( <FlaskNotRunning onRetry={handleRetryConnection} isRetrying={isRetrying} /> );
+    return (
+      <FlaskNotRunning
+        onRetry={handleRetryConnection}
+        isRetrying={isRetrying}
+      />
+    );
   }
 
   return (
     <div className="flex h-full">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} isExpanded={sidebarExpanded} onToggleExpand={() => setSidebarExpanded((prev) => !prev)} onNewChat={handleNewChat} chatSessions={chatSessions} onSelectChat={handleSelectChat} onDeleteChat={handleDeleteChat} onRenameChat={handleRenameChat} currentChatId={currentChatId} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isExpanded={sidebarExpanded}
+        onToggleExpand={() => setSidebarExpanded((prev) => !prev)}
+        onNewChat={handleNewChat}
+        chatSessions={chatSessions}
+        onSelectChat={handleSelectChat}
+        onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
+        currentChatId={currentChatId}
+      />
 
-      <div className={`flex-1 flex flex-col transition-all duration-300 ease-in-out`} >
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ease-in-out`}
+      >
         <main className="flex-1 flex flex-col overflow-hidden p-2 sm:p-4 min-h-0 text-white">
           <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-6 space-y-4 bg-black/10 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl">
-            {safeBackendStatus.checked && !safeBackendStatus.running && ( <BackendStatus backendStatus={safeBackendStatus} onRetry={handleRetryConnection} /> )}
-            {messages.map((msg, index) => ( <MessageBubble key={msg.id || index} message={msg} isSystem={msg.sender === "system"} /> ))}
-            {isLoading && <MessageBubble message={{ text: "Typing...", sender: "bot" }} isLoading={true} />}
+            {safeBackendStatus.checked && !safeBackendStatus.running && (
+              <BackendStatus
+                backendStatus={safeBackendStatus}
+                onRetry={handleRetryConnection}
+              />
+            )}
+            {messages.map((msg, index) => (
+              <MessageBubble
+                key={msg.id || index}
+                message={msg}
+                isSystem={msg.sender === "system"}
+              />
+            ))}
+            {isLoading && (
+              <MessageBubble
+                message={{ text: "Typing...", sender: "bot" }}
+                isLoading={true}
+              />
+            )}
             <div ref={messagesEndRef} />
           </div>
-          
+
           <div className="flex-shrink-0 pt-4">
-            <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} disabled={!safeBackendStatus.running} />
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+              disabled={!safeBackendStatus.running}
+            />
           </div>
         </main>
       </div>
