@@ -1323,15 +1323,18 @@ def toggle_active(user_id):
     return create_response({"success":True, "message": f"User {'activated' if new_status else 'deactivated'}"})
 
 # --- Serve React frontend ---
+# Serve React frontend for all non-API routes
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_frontend(path):
-    # If requested file exists in the frontend build, serve it
-    if path != "" and os.path.exists(os.path.join(FRONTEND_DIR, path)):
-        return app.send_static_file(path)
-    # Otherwise serve index.html for React router
-    return app.send_static_file("index.html")
+    if path.startswith("api/"):
+        return jsonify({"error": "API route not found"}), 404
 
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if path != "" and os.path.exists(file_path):
+        return app.send_static_file(path)
+
+    return app.send_static_file("index.html")
 
 # --- Health ---
 @app.route("/health", methods=["GET"])
