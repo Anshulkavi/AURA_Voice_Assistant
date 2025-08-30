@@ -213,7 +213,8 @@ function BackendStatus() {
   const fetchHealth = async () => {
     setStatus((prev) => ({ ...prev, checking: true }))
     try {
-      const res = await fetch("http://127.0.0.1:5000/health") // 🔹 change when deployed
+const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
+      const res = await fetch(`${backendUrl}/health`)
       const data = await res.json()
       setStatus({
         running: data.status === "healthy",
@@ -221,13 +222,14 @@ function BackendStatus() {
         checking: false,
         error: null,
         details: data,
+        responsePreview: null,
       })
     } catch (err) {
       setStatus({
         running: false,
         checked: true,
         checking: false,
-        error: err.message,
+        error: err.message || "Unknown error",
         details: null,
         responsePreview: null,
       })
@@ -267,7 +269,6 @@ function BackendStatus() {
           </button>
         </div>
 
-        {/* Show backend details */}
         {status.details && (
           <div className="mt-3 space-y-1 text-sm text-gray-300">
             <div>🌍 Environment: {status.details.environment}</div>
@@ -332,7 +333,7 @@ function BackendStatus() {
             <div>✅ Install dependencies: <code className="bg-black/40 px-2 py-1 rounded text-xs">pip install -r requirements.txt</code></div>
             <div>✅ Make sure <code className="bg-black/40 px-2 py-1 rounded text-xs">server.py</code> exists</div>
             <div>✅ Verify environment variables (.env with API keys)</div>
-            <div>✅ Check port 5000 availability: <code className="bg-black/40 px-2 py-1 rounded text-xs">lsof -i :5000</code></div>
+            <div>✅ Check port 5000 availability</div>
           </div>
         </div>
       </div>

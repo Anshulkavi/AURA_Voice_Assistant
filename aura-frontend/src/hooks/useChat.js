@@ -188,92 +188,172 @@
 // }
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useAuth } from "../contexts/AuthContext";
 
-export function useChat(userId) {
+export function useChat() {
+  // --- Auth context
+  const { user, getAccessToken, refreshAccessToken, logout } = useAuth();
+  const userId = user?.id || null;
+
+  // --- State
   const [messages, setMessages] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [backendStatus, setBackendStatus] = useState({
+    running: false,
+    checked: false,
+    checking: true,
+    error: null,
+  });
+
   const abortControllerRef = useRef(null);
 
-  // 🔹 Load user sessions (for sidebar)
-  const fetchSessions = useCallback(async () => {
+  const getBackendUrl = () =>
+    import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:5000";
+
+  // --- Authenticated fetch wrapper ---
+  const authenticatedFetch = useCallback(
+    async (url, options = {}) => {
+      let token = getAccessToken();
+      if (!token) throw new Error("No access token");
+
+      const opts = {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...options.headers,
+        },
+        ...options,
+      };
+
+      let res = await fetch(url, opts);
+
+      if (res.status === 401) {
+        try {
+          token = await refreshAccessToken();
+          opts.headers.Authorization = `Bearer ${token}`;
+          res = await fetch(url, opts);
+        } catch (err) {
+          logout();
+          throw new Error("Authentication failed - token expired");
+        }
+      }
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      return res;
+    },
+    [getAccessToken, refreshAccessToken, logout]
+  );
+
+  // --- Backend health check ---
+  const checkBackendHealth = useCallback(async () => {
+    setBackendStatus((prev) => ({ ...prev, checking: true }));
+
     try {
-      const res = await fetch("/api/get_sessions", { method: "GET" });
+      const res = await fetch(`${getBackendUrl()}/health`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+
+      setBackendStatus({
+        running: data.status === "healthy",
+        checked: true,
+        checking: false,
+        error: null,
+        details: data,
+      });
+    } catch (err) {
+      setBackendStatus({
+        running: false,
+        checked: true,
+        checking: false,
+        error: err.message || "Connection failed",
+        details: null,
+      });
+    }
+  }, []);
+
+  // --- Fetch user sessions ---
+  const fetchSessions = useCallback(async () => {
+    if (!backendStatus.running || !userId) return;
+    try {
+      const res = await authenticatedFetch(`${getBackendUrl()}/api/get_sessions`);
       const data = await res.json();
       setSessions(data || []);
     } catch (err) {
-      console.error("❌ Failed to fetch sessions:", err);
+      console.error("Failed to fetch sessions:", err);
+      setSessions([]);
     }
-  }, []);
+  }, [backendStatus.running, userId, authenticatedFetch]);
 
-  // 🔹 Load messages for active session
-  const fetchMessages = useCallback(async (sessionId) => {
-    try {
-      const res = await fetch(`/api/get_messages?sessionId=${sessionId}`);
-      const data = await res.json();
-      setMessages(data || []);
-    } catch (err) {
-      console.error("❌ Failed to fetch messages:", err);
-    }
-  }, []);
+  // --- Fetch messages ---
+  const fetchMessages = useCallback(
+    async (sessionId) => {
+      if (!backendStatus.running || !userId || !sessionId) return;
+      try {
+        const res = await authenticatedFetch(
+          `${getBackendUrl()}/api/get_messages?sessionId=${sessionId}`
+        );
+        const data = await res.json();
+        setMessages(data || []);
+      } catch (err) {
+        console.error("Failed to fetch messages:", err);
+        setMessages([]);
+      }
+    },
+    [backendStatus.running, userId, authenticatedFetch]
+  );
 
-  // 🔹 Start a new session
+  // --- Start new session ---
   const startNewSession = useCallback(async () => {
+    if (!backendStatus.running || !userId) return null;
     try {
-      const res = await fetch("/api/new_session", {
+      const res = await authenticatedFetch(`${getBackendUrl()}/api/new_session`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }), // backend ignores but safe
+        body: JSON.stringify({ userId }),
       });
       const data = await res.json();
       const newId = data.id;
       setActiveSessionId(newId);
-      await fetchSessions();
       setMessages([]);
+      await fetchSessions();
       return newId;
     } catch (err) {
-      console.error("❌ Failed to start session:", err);
+      console.error("Failed to start new session:", err);
+      return null;
     }
-  }, [userId, fetchSessions]);
+  }, [backendStatus.running, userId, fetchSessions, authenticatedFetch]);
 
-  // 🔹 Send message with streaming
+  // --- Send message ---
   const sendMessage = useCallback(
-    async ({ text, imageBase64 }) => {
-      const sessionId = activeSessionId || (await startNewSession());
+    async ({ text, imageBase64 = null }) => {
+      if (!backendStatus.running || !userId) return;
 
-      // Optimistic user message
+      const sessionId = activeSessionId || (await startNewSession());
+      if (!sessionId) return;
+
       const userMessage = {
         role: "user",
         content: text,
         timestamp: new Date().toISOString(),
+        id: Date.now() + Math.random(),
       };
       setMessages((prev) => [...prev, userMessage]);
-
       setLoading(true);
 
-      // Abort old stream if running
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      if (abortControllerRef.current) abortControllerRef.current.abort();
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
       try {
-        const res = await fetch("/api/chat/stream", {
+        const res = await authenticatedFetch(`${getBackendUrl()}/api/chat/stream`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            prompt: text,
-            image: imageBase64 || null,
-          }),
+          body: JSON.stringify({ sessionId, prompt: text, image: imageBase64 || null }),
           signal: controller.signal,
         });
 
-        if (!res.ok || !res.body) {
-          throw new Error("Streaming failed");
-        }
+        if (!res.body) throw new Error("No response body for streaming");
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -284,59 +364,121 @@ export function useChat(userId) {
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk
-            .split("\n")
-            .filter((l) => l.trim().startsWith("data:"));
+          const lines = chunk.split("\n").filter((l) => l.trim().startsWith("data:"));
 
           for (const line of lines) {
-            const data = JSON.parse(line.replace("data:", "").trim());
+            try {
+              const data = JSON.parse(line.replace("data:", "").trim());
 
-            if (data.delta) {
-              assistantBuffer += data.delta;
-              setMessages((prev) => {
-                const withoutTemp = prev.filter((m) => m.role !== "assistant-temp");
-                return [...withoutTemp, { role: "assistant-temp", content: assistantBuffer }];
-              });
-            }
+              if (data.delta) {
+                assistantBuffer += data.delta;
+                setMessages((prev) => {
+                  const withoutTemp = prev.filter((m) => m.role !== "assistant-temp");
+                  return [...withoutTemp, { role: "assistant-temp", content: assistantBuffer, id: "temp-" + Date.now() }];
+                });
+              }
 
-            if (data.done) {
-              setMessages((prev) => {
-                const withoutTemp = prev.filter((m) => m.role !== "assistant-temp");
-                return [
-                  ...withoutTemp,
-                  {
-                    role: "assistant",
-                    content: data.final,
-                    timestamp: new Date().toISOString(),
-                  },
-                ];
-              });
+              if (data.done) {
+                setMessages((prev) => {
+                  const withoutTemp = prev.filter((m) => m.role !== "assistant-temp");
+                  return [
+                    ...withoutTemp,
+                    { role: "assistant", content: data.final, timestamp: new Date().toISOString(), id: Date.now() + Math.random() },
+                  ];
+                });
+              }
+
+              if (data.error) throw new Error(data.error);
+            } catch (e) {
+              console.error("Error parsing stream data:", e);
             }
           }
         }
       } catch (err) {
-        console.error("❌ Streaming error:", err);
+        if (err.name !== "AbortError") {
+          console.error("Streaming error:", err);
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "Error: Please try again.", timestamp: new Date().toISOString(), id: Date.now() + Math.random(), isError: true },
+          ]);
+        }
       } finally {
         setLoading(false);
         abortControllerRef.current = null;
       }
     },
-    [activeSessionId, startNewSession]
+    [activeSessionId, backendStatus.running, userId, startNewSession, authenticatedFetch]
   );
 
-  // 🔹 Load sessions on mount
+  // --- Session operations ---
+  const selectSession = useCallback(
+    (sessionId) => {
+      if (!userId) return;
+      setActiveSessionId(sessionId);
+      fetchMessages(sessionId);
+    },
+    [fetchMessages, userId]
+  );
+
+  const deleteSession = useCallback(
+    async (sessionId) => {
+      if (!backendStatus.running || !userId) return;
+      try {
+        await authenticatedFetch(`${getBackendUrl()}/api/delete_session?sessionId=${sessionId}`, { method: "DELETE" });
+        if (sessionId === activeSessionId) {
+          setActiveSessionId(null);
+          setMessages([]);
+        }
+        await fetchSessions();
+      } catch (err) {
+        console.error("Failed to delete session:", err);
+      }
+    },
+    [backendStatus.running, userId, activeSessionId, fetchSessions, authenticatedFetch]
+  );
+
+  const renameSession = useCallback(
+    async (sessionId, newTitle) => {
+      if (!backendStatus.running || !userId) return;
+      try {
+        await authenticatedFetch(`${getBackendUrl()}/api/rename_session`, { method: "POST", body: JSON.stringify({ sessionId, title: newTitle }) });
+        await fetchSessions();
+      } catch (err) {
+        console.error("Failed to rename session:", err);
+      }
+    },
+    [backendStatus.running, userId, fetchSessions, authenticatedFetch]
+  );
+
+  // --- Effects ---
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    checkBackendHealth();
+  }, [checkBackendHealth]);
+
+  useEffect(() => {
+    if (backendStatus.running && userId) fetchSessions();
+    else setSessions([]);
+  }, [backendStatus.running, userId, fetchSessions]);
+
+  useEffect(() => {
+    if (!userId) {
+      setMessages([]);
+      setSessions([]);
+      setActiveSessionId(null);
+    }
+  }, [userId]);
 
   return {
     messages,
-    sessions,
-    activeSessionId,
-    setActiveSessionId,
+    isLoading: loading,
     sendMessage,
-    startNewSession,
-    fetchMessages,
-    loading,
+    backendStatus,
+    retryBackendConnection: checkBackendHealth,
+    chatSessions: sessions,
+    currentChatId: activeSessionId,
+    createNewChat: startNewSession,
+    selectChat: selectSession,
+    deleteChat: deleteSession,
+    renameChat: renameSession,
   };
 }

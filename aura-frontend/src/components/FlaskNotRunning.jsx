@@ -1,169 +1,110 @@
-"use client"
+import { AlertCircle, RefreshCw, Play, Terminal } from "lucide-react";
 
-import { useState } from "react"
-import { AlertTriangle, Play, RefreshCw, Terminal, CheckCircle, ExternalLink } from "lucide-react"
-
-function FlaskNotRunning({ onRetry, isRetrying }) {
-  const [showDetailedSteps, setShowDetailedSteps] = useState(false)
-
+function FlaskNotRunning({ onRetry, isRetrying, backendStatus }) {
   return (
-    <div className="max-w-2xl mx-auto">
-      {/* Main Alert */}
-      <div className="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-6 mb-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <AlertTriangle className="w-8 h-8 text-red-400" />
-          <div>
-            <h2 className="text-xl font-bold text-red-400">Flask Backend Not Running</h2>
-            <p className="text-red-300 text-sm">Your React app is working, but the Flask server needs to be started</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onRetry}
-            disabled={isRetrying}
-            className="flex items-center space-x-2 px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 rounded-xl hover:bg-red-500/30 transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRetrying ? "animate-spin" : ""}`} />
-            <span>{isRetrying ? "Checking..." : "Retry Connection"}</span>
-          </button>
-
-          <button
-            onClick={() => setShowDetailedSteps(!showDetailedSteps)}
-            className="text-red-400 hover:text-red-300 text-sm underline"
-          >
-            {showDetailedSteps ? "Hide" : "Show"} Detailed Steps
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Start Instructions */}
-      <div className="bg-green-500/10 border border-green-500/20 rounded-2xl p-6 mb-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <Play className="w-6 h-6 text-green-400" />
-          <h3 className="text-lg font-semibold text-green-400">Quick Start Flask Backend</h3>
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-black/30 rounded-xl p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <Terminal className="w-4 h-4 text-blue-400" />
-              <span className="text-blue-400 font-medium">Open terminal and run:</span>
+    <div className="flex h-full items-center justify-center p-4 text-white">
+      <div className="max-w-2xl w-full">
+        {/* Main Error Card */}
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-6 h-6 text-red-400" />
+              <span className="text-xl text-red-400 font-semibold">Flask Backend Not Running</span>
             </div>
-            <div className="bg-black/50 rounded-lg p-3 font-mono text-green-400 text-lg">python app.py</div>
-          </div>
-
-          <div className="bg-black/30 rounded-xl p-4">
-            <div className="flex items-center space-x-2 mb-2">
-              <CheckCircle className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-medium">Wait for this message:</span>
-            </div>
-            <div className="bg-black/50 rounded-lg p-3 font-mono text-sm text-green-400">
-              🚀 Starting server on port 5000
-              <br />✅ Firebase initialized
-              <br />✅ Gemini AI configured
-              <br />* Running on http://127.0.0.1:5000
-            </div>
-          </div>
-
-          <div className="text-center">
-            <div className="text-white/70 text-sm mb-2">Then click:</div>
             <button
               onClick={onRetry}
               disabled={isRetrying}
-              className="px-6 py-3 bg-green-500/20 text-green-400 border border-green-500/50 rounded-xl hover:bg-green-500/30 transition-all font-medium disabled:opacity-50"
+              className="flex items-center space-x-2 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors disabled:opacity-50"
             >
-              {isRetrying ? "Checking..." : "🔄 Retry Connection"}
+              <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+              <span>{isRetrying ? 'Retrying...' : 'Retry Connection'}</span>
             </button>
+          </div>
+
+          {/* Error Details */}
+          {backendStatus?.error && (
+            <div className="bg-black/20 rounded-lg p-3 mb-4">
+              <div className="text-red-400 font-medium mb-2">Connection Error:</div>
+              <div className="text-white/70 text-sm font-mono bg-black/40 p-2 rounded">
+                {backendStatus.error}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Start Instructions */}
+        <div className="bg-black/20 border border-white/10 rounded-xl p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <Play className="w-6 h-6 text-green-400" />
+            <span className="text-xl text-green-400 font-semibold">Quick Start Guide</span>
+          </div>
+
+          <div className="space-y-4">
+            {/* Step 1 */}
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-white font-medium mb-2">1. Start the Flask Backend</div>
+              <div className="bg-black/40 rounded p-3 font-mono text-sm">
+                <div className="text-gray-400 mb-1"># Open terminal in your project directory</div>
+                <div className="text-green-400">python server.py</div>
+              </div>
+              <div className="text-white/70 text-sm mt-2">
+                Wait for: <span className="text-green-400 font-mono">"Running on http://127.0.0.1:5000"</span>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-white font-medium mb-2">2. Environment Setup</div>
+              <div className="text-white/70 text-sm space-y-2">
+                <div>Create <code className="bg-black/40 px-2 py-1 rounded text-xs">.env</code> file in your React project:</div>
+                <div className="bg-black/40 rounded p-3 font-mono text-sm">
+                  <div className="text-green-400">VITE_BACKEND_URL=http://127.0.0.1:5000</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-black/20 rounded-lg p-4">
+              <div className="text-white font-medium mb-2">3. Backend Dependencies</div>
+              <div className="text-white/70 text-sm space-y-2">
+                <div>Make sure you have installed all Python dependencies:</div>
+                <div className="bg-black/40 rounded p-3 font-mono text-sm">
+                  <div className="text-blue-400">pip install -r requirements.txt</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Troubleshooting */}
+          <div className="mt-6 bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+            <div className="text-blue-400 font-medium mb-3">Troubleshooting Checklist:</div>
+            <div className="text-white/70 text-sm space-y-2">
+              <div className="flex items-center space-x-2">
+                <Terminal className="w-4 h-4" />
+                <span>Check Python version: <code className="bg-black/40 px-2 py-1 rounded text-xs">python --version</code></span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Terminal className="w-4 h-4" />
+                <span>Verify Flask installation: <code className="bg-black/40 px-2 py-1 rounded text-xs">pip show flask</code></span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Terminal className="w-4 h-4" />
+                <span>Check if port 5000 is available</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Terminal className="w-4 h-4" />
+                <span>Ensure <code className="bg-black/40 px-2 py-1 rounded text-xs">server.py</code> exists in your project</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Terminal className="w-4 h-4" />
+                <span>Verify your <code className="bg-black/40 px-2 py-1 rounded text-xs">.env</code> file has required API keys</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Detailed Troubleshooting */}
-      {showDetailedSteps && (
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-6">
-          <h3 className="text-lg font-semibold text-blue-400 mb-4">Detailed Troubleshooting</h3>
-
-          <div className="space-y-4">
-            <div className="bg-black/20 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">1️⃣ Check if you're in the right directory</h4>
-              <div className="text-white/70 text-sm space-y-1">
-                <div>
-                  • Make sure you can see <code className="bg-black/40 px-1 rounded">app.py</code> file
-                </div>
-                <div>
-                  • Run: <code className="bg-black/40 px-1 rounded">ls</code> (Mac/Linux) or{" "}
-                  <code className="bg-black/40 px-1 rounded">dir</code> (Windows)
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-black/20 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">2️⃣ Install Python dependencies</h4>
-              <div className="text-white/70 text-sm space-y-1">
-                <div>
-                  • Run: <code className="bg-black/40 px-1 rounded">pip install -r requirements.txt</code>
-                </div>
-                <div>
-                  • Or: <code className="bg-black/40 px-1 rounded">python -m pip install -r requirements.txt</code>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-black/20 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">3️⃣ Check environment variables</h4>
-              <div className="text-white/70 text-sm space-y-1">
-                <div>
-                  • Make sure you have a <code className="bg-black/40 px-1 rounded">.env</code> file
-                </div>
-                <div>• It should contain your API keys (GEMINI_API_KEY, etc.)</div>
-              </div>
-            </div>
-
-            <div className="bg-black/20 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">4️⃣ Check if port 5000 is free</h4>
-              <div className="text-white/70 text-sm space-y-1">
-                <div>
-                  • Mac/Linux: <code className="bg-black/40 px-1 rounded">lsof -i :5000</code>
-                </div>
-                <div>
-                  • Windows: <code className="bg-black/40 px-1 rounded">netstat -an | findstr :5000</code>
-                </div>
-                <div>• If something is using port 5000, kill it or use a different port</div>
-              </div>
-            </div>
-
-            <div className="bg-black/20 rounded-xl p-4">
-              <h4 className="font-medium text-white mb-2">5️⃣ Common Flask startup errors</h4>
-              <div className="text-white/70 text-sm space-y-1">
-                <div>
-                  • <strong>ModuleNotFoundError:</strong> Run{" "}
-                  <code className="bg-black/40 px-1 rounded">pip install [missing-module]</code>
-                </div>
-                <div>
-                  • <strong>Port already in use:</strong> Kill the process or change port
-                </div>
-                <div>
-                  • <strong>Environment variables missing:</strong> Check your .env file
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-            <div className="flex items-center space-x-2 mb-2">
-              <ExternalLink className="w-4 h-4 text-yellow-400" />
-              <span className="text-yellow-400 font-medium">Still having issues?</span>
-            </div>
-            <div className="text-white/70 text-sm">
-              Check the terminal where you ran <code className="bg-black/40 px-1 rounded">python app.py</code> for error
-              messages. The error messages will tell you exactly what's wrong.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  )
+  );
 }
 
-export default FlaskNotRunning
+export default FlaskNotRunning;
