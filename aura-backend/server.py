@@ -861,7 +861,7 @@ import jwt
 
 # --- Load environment ---
 load_dotenv()
-FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'aura-frontend', 'dist'))
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "aura-frontend", "dist")
 
 # --- Flask app ---
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
@@ -1334,6 +1334,7 @@ def serve_frontend(path):
     if path != "" and os.path.exists(file_path):
         return app.send_static_file(path)
 
+    # Fallback to index.html for React routing
     return app.send_static_file("index.html")
 
 # --- Health ---
