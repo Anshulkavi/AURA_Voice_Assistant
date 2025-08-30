@@ -1322,6 +1322,17 @@ def toggle_active(user_id):
     ref.update({"is_active": new_status})
     return create_response({"success":True, "message": f"User {'activated' if new_status else 'deactivated'}"})
 
+# --- Serve React frontend ---
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    # If requested file exists in the frontend build, serve it
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIR, path)):
+        return app.send_static_file(path)
+    # Otherwise serve index.html for React router
+    return app.send_static_file("index.html")
+
+
 # --- Health ---
 @app.route("/health", methods=["GET"])
 def health():
