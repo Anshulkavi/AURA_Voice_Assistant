@@ -861,10 +861,8 @@ import jwt
 
 # --- Load environment ---
 load_dotenv()
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "aura-frontend", "dist")
-
-# --- Flask app ---
-app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'aura-frontend', 'dist'))
+app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", secrets.token_hex(32))
 
 # --- Environment detection ---
