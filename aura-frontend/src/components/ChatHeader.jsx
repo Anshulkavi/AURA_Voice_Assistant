@@ -10,7 +10,7 @@ function ChatHeader() {
   const [showVoiceSettings, setShowVoiceSettings] = useState(false)
 
   const handleStopSpeaking = () => {
-    console.log("🛑 Stop speaking button clicked")
+    // console.log("🛑 Stop speaking button clicked")
     stopSpeaking()
   }
 

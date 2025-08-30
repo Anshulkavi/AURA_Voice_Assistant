@@ -193,7 +193,7 @@ import { useAuth } from "../contexts/AuthContext";
 function Chatbot({ sidebarOpen, setSidebarOpen }) {
   const { user } = useAuth();
 
-  console.log("Chatbot: Current user object:", user);
+  // console.log("Chatbot: Current user object:", user);
 
   // ✅ Use useChat without passing userId
   const {

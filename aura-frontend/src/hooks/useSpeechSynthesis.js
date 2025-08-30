@@ -42,13 +42,13 @@ export function useSpeechSynthesis() {
 
       // Prevent speaking the same text multiple times
       if (lastSpokenTextRef.current === textToSpeak && isSpeaking) {
-        console.log("🔇 Preventing duplicate speech:", textToSpeak.substring(0, 50))
+        // console.log("🔇 Preventing duplicate speech:", textToSpeak.substring(0, 50))
         return
       }
 
       // Cancel any ongoing speech first
       if (speechSynthesis.speaking || currentUtteranceRef.current) {
-        console.log("🛑 Stopping previous speech")
+        // console.log("🛑 Stopping previous speech")
         speechSynthesis.cancel()
         setIsSpeaking(false)
         currentUtteranceRef.current = null
@@ -63,7 +63,7 @@ export function useSpeechSynthesis() {
         .trim()
 
       if (cleanText.length > 0) {
-        console.log("🔊 Starting speech:", cleanText.substring(0, 50))
+        // console.log("🔊 Starting speech:", cleanText.substring(0, 50))
 
         const utterance = new SpeechSynthesisUtterance(cleanText)
 
@@ -78,32 +78,32 @@ export function useSpeechSynthesis() {
 
         // Event handlers
         utterance.onstart = () => {
-          console.log("🎤 Speech started")
+          // console.log("🎤 Speech started")
           setIsSpeaking(true)
           lastSpokenTextRef.current = textToSpeak
           currentUtteranceRef.current = utterance
         }
 
         utterance.onend = () => {
-          console.log("🎤 Speech ended")
+          // console.log("🎤 Speech ended")
           setIsSpeaking(false)
           currentUtteranceRef.current = null
           lastSpokenTextRef.current = null
         }
 
         utterance.onerror = (event) => {
-          console.warn("🚨 Speech synthesis error:", event.error)
+          // console.warn("🚨 Speech synthesis error:", event.error)
           setIsSpeaking(false)
           currentUtteranceRef.current = null
           lastSpokenTextRef.current = null
         }
 
         utterance.onpause = () => {
-          console.log("⏸️ Speech paused")
+          // console.log("⏸️ Speech paused")
         }
 
         utterance.onresume = () => {
-          console.log("▶️ Speech resumed")
+          // console.log("▶️ Speech resumed")
         }
 
         // Start speaking
@@ -115,7 +115,7 @@ export function useSpeechSynthesis() {
 
   // Stop speaking
   const stop = useCallback(() => {
-    console.log("🛑 Manually stopping speech")
+    // console.log("🛑 Manually stopping speech")
     speechSynthesis.cancel()
     setIsSpeaking(false)
     currentUtteranceRef.current = null

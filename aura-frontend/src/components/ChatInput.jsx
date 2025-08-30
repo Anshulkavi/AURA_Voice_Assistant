@@ -312,20 +312,20 @@ function ChatInput({ onSendMessage, isLoading, disabled = false }) {
           reader.readAsDataURL(selectedImage)
         })
       } catch (error) {
-        console.error("❌ Error converting image:", error)
+        // console.error("❌ Error converting image:", error)
         return
       }
     }
 
     try {
       // DEBUGGING LOG ADDED HERE
-      console.log("1. ChatInput: Sending this text ->", messageText);
+      // console.log("1. ChatInput: Sending this text ->", messageText);
       
       await onSendMessage(messageText, imageBase64)
-      console.log("✅ Message sent successfully")
+      // console.log("✅ Message sent successfully")
       clearInputs()
     } catch (error) {
-      console.error("❌ Error sending message in ChatInput:", error)
+      // console.error("❌ Error sending message in ChatInput:", error)
     }
   }
 

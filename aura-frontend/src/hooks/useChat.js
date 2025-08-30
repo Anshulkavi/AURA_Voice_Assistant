@@ -282,7 +282,7 @@ export function useChat() {
       const data = await res.json();
       setSessions(data || []);
     } catch (err) {
-      console.error("Failed to fetch sessions:", err);
+      // console.error("Failed to fetch sessions:", err);
       setSessions([]);
     }
   }, [backendStatus.running, userId, authenticatedFetch]);
@@ -298,7 +298,7 @@ export function useChat() {
         const data = await res.json();
         setMessages(data || []);
       } catch (err) {
-        console.error("Failed to fetch messages:", err);
+        // console.error("Failed to fetch messages:", err);
         setMessages([]);
       }
     },
@@ -320,7 +320,7 @@ export function useChat() {
       await fetchSessions();
       return newId;
     } catch (err) {
-      console.error("Failed to start new session:", err);
+      // console.error("Failed to start new session:", err);
       return null;
     }
   }, [backendStatus.running, userId, fetchSessions, authenticatedFetch]);
@@ -390,13 +390,13 @@ export function useChat() {
 
               if (data.error) throw new Error(data.error);
             } catch (e) {
-              console.error("Error parsing stream data:", e);
+              // console.error("Error parsing stream data:", e);
             }
           }
         }
       } catch (err) {
         if (err.name !== "AbortError") {
-          console.error("Streaming error:", err);
+          // console.error("Streaming error:", err);
           setMessages((prev) => [
             ...prev,
             { role: "assistant", content: "Error: Please try again.", timestamp: new Date().toISOString(), id: Date.now() + Math.random(), isError: true },
@@ -431,7 +431,7 @@ export function useChat() {
         }
         await fetchSessions();
       } catch (err) {
-        console.error("Failed to delete session:", err);
+        // console.error("Failed to delete session:", err);
       }
     },
     [backendStatus.running, userId, activeSessionId, fetchSessions, authenticatedFetch]
@@ -444,7 +444,7 @@ export function useChat() {
         await authenticatedFetch(`${getBackendUrl()}/api/rename_session`, { method: "POST", body: JSON.stringify({ sessionId, title: newTitle }) });
         await fetchSessions();
       } catch (err) {
-        console.error("Failed to rename session:", err);
+        // console.error("Failed to rename session:", err);
       }
     },
     [backendStatus.running, userId, fetchSessions, authenticatedFetch]

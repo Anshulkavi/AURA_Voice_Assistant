@@ -404,7 +404,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("access", data.access);
       return data.access;
     } catch (err) {
-      console.error("Token refresh failed:", err);
+      // console.error("Token refresh failed:", err);
       logout();
       throw err;
     }
@@ -438,7 +438,7 @@ export const AuthProvider = ({ children }) => {
       const data = await res.json();
       setUser(data.user);
     } catch (err) {
-      console.error("Auth check failed:", err);
+      // console.error("Auth check failed:", err);
       setUser(null);
       clearTokens();
     } finally {
@@ -470,7 +470,7 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (err) {
-      console.error("Login failed:", err);
+      // console.error("Login failed:", err);
       setError(err.message);
       clearTokens();
       setUser(null);
@@ -497,7 +497,7 @@ export const AuthProvider = ({ children }) => {
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (err) {
-      console.error("Registration failed:", err);
+      // console.error("Registration failed:", err);
       setError(err.message);
       clearTokens();
       setUser(null);

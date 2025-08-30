@@ -71,7 +71,7 @@ const Contact = () => {
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
       // In a real app, you would send the form data to your backend
-      console.log("Form submitted:", formData)
+      // console.log("Form submitted:", formData)
 
       setIsSubmitted(true)
       setFormData({
@@ -81,7 +81,7 @@ const Contact = () => {
         message: "",
       })
     } catch (error) {
-      console.error("Error submitting form:", error)
+      // console.error("Error submitting form:", error)
     } finally {
       setIsSubmitting(false)
     }

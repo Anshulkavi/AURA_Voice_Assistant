@@ -23,7 +23,7 @@ export function useSpeechRecognition() {
 
         // Event handlers
         recognitionInstance.onstart = () => {
-          console.log("🎤 Speech recognition started")
+          // console.log("🎤 Speech recognition started")
           setIsListening(true)
         }
 
@@ -38,18 +38,18 @@ export function useSpeechRecognition() {
           }
 
           if (finalTranscript) {
-            console.log("🎤 Speech recognized:", finalTranscript)
+            // console.log("🎤 Speech recognized:", finalTranscript)
             setTranscript(finalTranscript.trim())
           }
         }
 
         recognitionInstance.onend = () => {
-          console.log("🎤 Speech recognition ended")
+          // console.log("🎤 Speech recognition ended")
           setIsListening(false)
         }
 
         recognitionInstance.onerror = (event) => {
-          console.error("🚨 Speech recognition error:", event.error)
+          // console.error("🚨 Speech recognition error:", event.error)
           setIsListening(false)
 
           if (event.error === "not-allowed") {
@@ -60,7 +60,7 @@ export function useSpeechRecognition() {
         setRecognition(recognitionInstance)
         setIsSupported(true)
       } else {
-        console.warn("Speech recognition not supported in this browser")
+        // console.warn("Speech recognition not supported in this browser")
         setIsSupported(false)
       }
     }
@@ -69,12 +69,12 @@ export function useSpeechRecognition() {
   // Start listening
   const startListening = useCallback(() => {
     if (recognition && !isListening) {
-      console.log("🎤 Starting speech recognition")
+      // console.log("🎤 Starting speech recognition")
       setTranscript("") // Clear previous transcript
       try {
         recognition.start()
       } catch (error) {
-        console.error("Error starting speech recognition:", error)
+        // console.error("Error starting speech recognition:", error)
       }
     }
   }, [recognition, isListening])
@@ -82,14 +82,14 @@ export function useSpeechRecognition() {
   // Stop listening
   const stopListening = useCallback(() => {
     if (recognition && isListening) {
-      console.log("🎤 Stopping speech recognition")
+      // console.log("🎤 Stopping speech recognition")
       recognition.stop()
     }
   }, [recognition, isListening])
 
   // Reset transcript
   const resetTranscript = useCallback(() => {
-    console.log("🧹 Resetting speech transcript")
+    // console.log("🧹 Resetting speech transcript")
     setTranscript("")
   }, [])
 

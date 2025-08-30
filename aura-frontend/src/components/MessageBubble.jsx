@@ -414,7 +414,7 @@ function CodeBlock({ children, language = "javascript" }) {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       } catch (err) {
-        console.error('Failed to copy:', err)
+        // console.error('Failed to copy:', err)
       }
     }
   }
@@ -581,7 +581,7 @@ function MessageBubble({ message, isLoading = false, isSystem = false }) {
             )
           }
         } catch (error) {
-          console.error('Error parsing code block:', error)
+          // console.error('Error parsing code block:', error)
           return (
             <div key={index} className="whitespace-pre-wrap">
               {part}
