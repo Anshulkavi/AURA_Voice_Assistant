@@ -850,7 +850,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response,send_from_directory,send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 from PIL import Image
@@ -1321,20 +1321,40 @@ def toggle_active(user_id):
     return create_response({"success":True, "message": f"User {'activated' if new_status else 'deactivated'}"})
 
 # --- Serve React frontend ---
-# Serve React frontend for all non-API routes
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve_frontend(path):
-    if path.startswith("api/"):
-        return jsonify({"error": "API route not found"}), 404
-
-    file_path = os.path.join(FRONTEND_DIR, path)
-    if path != "" and os.path.exists(file_path):
-        return app.send_static_file(path)
-
-    # Fallback to index.html for React routing
-    return app.send_static_file("index.html")
-
+# --- Static Files and React Routing (Production Only) ---
+@app.route('/<path:filename>')
+def serve_static_or_react(filename):
+    # Ensure API routes never reach here
+    if filename.startswith('api/'):
+        print(f"❌ API route {filename} reached catch-all - this should not happen")
+        return create_response({"error": f"API endpoint /{filename} not found"}, 404)
+    
+    if IS_PROD:
+        # Serve static files first
+        if '.' in filename and app.static_folder:
+            static_path = os.path.join(app.static_folder, filename)
+            if os.path.exists(static_path):
+                print(f"📁 Serving static file: {filename}")
+                return send_from_directory(app.static_folder, filename)
+        
+        # For all other paths, serve React app
+        print(f"📄 Serving React app for path: /{filename}")
+        try:
+            if app.static_folder and os.path.exists(os.path.join(app.static_folder, 'index.html')):
+                return send_file(os.path.join(app.static_folder, 'index.html'))
+            else:
+                return create_response({
+                    "error": "React build not found",
+                    "path": filename
+                }, 404)
+        except Exception as e:
+            print(f"❌ Error serving React for {filename}: {e}")
+            return create_response({"error": "Failed to serve application"}, 500)
+    else:
+        return create_response({
+            "error": f"Path /{filename} not found in development mode",
+            "message": "This is the Flask backend. Run React dev server at http://localhost:5173"
+        }, 404)
 # --- Health ---
 @app.route("/health", methods=["GET"])
 def health():
