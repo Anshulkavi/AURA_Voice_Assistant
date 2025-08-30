@@ -2374,6 +2374,15 @@ def catch_all(path):
         return jsonify({"error": "API endpoint not found"}), 404
     return send_file(os.path.join(app.static_folder, "index.html"))
 
+@app.errorhandler(404)
+def handle_404(e):
+    # If the URL starts with /api/, return JSON
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "API endpoint not found"}), 404
+    # Otherwise, serve React index.html
+    return send_file(os.path.join(app.static_folder, "index.html"))
+
+
 # --- Health ---
 @app.route("/health", methods=["GET"])
 def health():
