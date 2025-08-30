@@ -3116,8 +3116,10 @@ def api_clear_chat():
 @app.route('/api/chat/stream', methods=['POST','OPTIONS'])
 @jwt_required
 def api_chat_stream():
-    if request.method=='OPTIONS': return create_response({},200)
-    if not db or not model: return create_response({"error":"Backend not ready"},500)
+    if request.method=='OPTIONS': 
+        return create_response({},200)
+    if not db or not model: 
+        return create_response({"error":"Backend not ready"},500)
     
     user_id = request.user_id
     data = request.json or {}
@@ -3133,15 +3135,22 @@ def api_chat_stream():
             yield f"data: {json.dumps({'status':'started'})}\n\n"
             combined_prompt = build_combined_prompt(history, prompt, limit=10)
 
-            # Stream AI response token-by-token
-            for token in model.stream_content(combined_prompt):
-                yield f"data: {json.dumps({'delta': token})}\n\n"
+            # Generate full response
+            full_response = model.generate_content(contents=combined_prompt).text.strip()
 
-            full_response = model.generate_content(combined_prompt).text.strip()
+            # Stream response char-by-char
+            for char in full_response:
+                yield f"data: {json.dumps({'delta': char})}\n\n"
+
+            # Final completion message
             yield f"data: {json.dumps({'done': True, 'final': full_response})}\n\n"
 
-            # Save in background
-            threading.Thread(target=save_messages_and_title, args=(user_id, session_id, prompt, full_response), daemon=True).start()
+            # Save messages in background
+            threading.Thread(
+                target=save_messages_and_title, 
+                args=(user_id, session_id, prompt, full_response),
+                daemon=True
+            ).start()
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
