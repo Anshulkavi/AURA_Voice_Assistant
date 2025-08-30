@@ -1752,6 +1752,16 @@ def api_clear_chat():
     threading.Thread(target=clear_chat_messages, args=(request.user_id, session_id), daemon=True).start()
     return create_response({"success": True, "message": "Chat cleared successfully"})
 
+# --- Serve frontend SPA for unknown routes ---
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_frontend(path):
+    # If file exists in frontend folder, serve it
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIR, path)):
+        return app.send_static_file(path)
+    # Otherwise, serve index.html for SPA routing
+    return app.send_static_file("index.html")
+
 # --- Health ---
 @app.route("/health", methods=["GET"])
 def health():
