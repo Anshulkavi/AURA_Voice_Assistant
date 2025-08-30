@@ -1885,10 +1885,903 @@
     
 #     app.run(host='0.0.0.0', port=port, debug=debug_mode)
 
+# import os
+# import io
+# import json
+# import base64
+# import uuid
+# import hashlib
+# import secrets
+# import threading
+# from datetime import datetime, timedelta, timezone
+# from functools import wraps
+
+# from flask import Flask, request, jsonify, Response,send_from_directory,send_file
+# from flask_cors import CORS
+# from dotenv import load_dotenv
+# from PIL import Image
+# import google.generativeai as genai
+# import firebase_admin
+# from firebase_admin import credentials, firestore
+# import jwt
+
+# # --- Load environment ---
+# load_dotenv()
+# frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'aura-frontend', 'dist'))
+# app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
+# app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+# # --- Environment detection ---
+# FLASK_ENV = os.environ.get("FLASK_ENV", "development")
+# IS_PROD = FLASK_ENV == "production" or os.environ.get("NODE_ENV") == "production"
+
+# # --- CORS ---
+# def get_allowed_origins():
+#     if IS_PROD:
+#         origins = []
+#         frontend_url = os.environ.get('FRONTEND_URL')
+#         if frontend_url:
+#             origins.append(frontend_url)
+#         return origins if origins else ['*']
+#     else:
+#         return [
+#             'http://localhost:5173',
+#             'http://127.0.0.1:5173',
+#             'http://localhost:3000',
+#             'http://127.0.0.1:3000'
+#         ]
+
+# allowed_origins = get_allowed_origins()
+# CORS(app, origins=allowed_origins, supports_credentials=True,
+#      allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+#      methods=['GET','POST','PUT','DELETE','OPTIONS'],
+#      expose_headers=['Content-Type'])
+
+# # --- Firebase ---
+# try:
+#     if not firebase_admin._apps:
+#         service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+#         if service_account_json:
+#             cred_dict = json.loads(service_account_json)
+#             if "private_key" in cred_dict:
+#                 cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+#             cred = credentials.Certificate(cred_dict)
+#         else:
+#             cred = credentials.Certificate("firebase-service-account.json")
+#         firebase_admin.initialize_app(cred)
+#         db = firestore.client()
+#         print("✅ Firebase initialized.")
+# except Exception as e:
+#     print(f"❌ Firebase init failed: {e}")
+#     db = None
+
+# # --- Gemini AI ---
+# try:
+#     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+#     model = genai.GenerativeModel('gemini-2.0-flash-exp')
+#     print("✅ Gemini AI configured.")
+# except Exception as e:
+#     print(f"❌ Gemini init failed: {e}")
+#     model = None
+
+# # --- Helpers ---
+
+# def now_iso():
+#     return datetime.now(timezone.utc).isoformat()
+
+# def create_response(data, status=200):
+#     response = jsonify(data)
+#     response.status_code = status
+#     return response
+
+# def hash_password(password):
+#     salt = secrets.token_hex(16)
+#     hash_hex = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+#     return f"{salt}:{hash_hex}"
+
+# def verify_password(password, hashed):
+#     try:
+#         salt, hash_hex = hashed.split(":")
+#         return hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex() == hash_hex
+#     except:
+#         return False
+
+# def create_access_token(user_id, expires_in=3600*24*7):
+#     payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(seconds=expires_in), "type": "access"}
+#     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+# def create_refresh_token(user_id, expires_in=3600*24*30):
+#     payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(seconds=expires_in), "type": "refresh"}
+#     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+# def decode_jwt(token, expected_type=None):
+#     try:
+#         payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+#         if expected_type and payload.get("type") != expected_type:
+#             return None
+#         return payload
+#     except Exception:
+#         return None
+
+# # --- Decorators ---
+# def jwt_required(f):
+#     @wraps(f)
+#     def wrapper(*args, **kwargs):
+#         # Allow OPTIONS requests to pass for CORS preflight
+#         if request.method == "OPTIONS":
+#             return create_response({}, 200)
+
+#         auth_header = request.headers.get("Authorization", "")
+#         if not auth_header.startswith("Bearer "):
+#             return create_response({"error": "Missing or invalid token"}, 401)
+#         token = auth_header.split(" ")[1]
+#         payload = decode_jwt(token, expected_type="access")
+#         if not payload or "user_id" not in payload:
+#             return create_response({"error": "Invalid or expired token"}, 401)
+#         request.user_id = payload["user_id"]
+#         return f(*args, **kwargs)
+#     return wrapper
+
+# def admin_required(f):
+#     @wraps(f)
+#     def wrapper(*args, **kwargs):
+#         user_ref = db.collection("users").document(request.user_id)
+#         doc = user_ref.get()
+#         if not doc.exists or not doc.to_dict().get("is_admin", False):
+#             return create_response({"error": "Admin privileges required"}, 403)
+#         return f(*args, **kwargs)
+#     return wrapper
+
+# def get_current_user(user_id):
+#     try:
+#         user_doc = db.collection("users").document(user_id).get()
+#         if not user_doc.exists: return None
+#         user_data = user_doc.to_dict()
+#         user_data["id"] = user_id
+#         user_data.pop("password_hash", None)
+#         return user_data
+#     except: return None
+
+# # --- Utility to save messages & generate AI title ---
+# def save_messages_and_title(user_id, session_id, prompt, assistant_text):
+#     try:
+#         messages_collection = (
+#             db.collection("users").document(user_id)
+#             .collection("sessions").document(session_id)
+#             .collection("messages")
+#         )
+#         session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+
+#         # Save user + assistant messages
+#         messages_collection.add({"role": "user", "content": prompt, "timestamp": now_iso()})
+#         messages_collection.add({"role": "assistant", "content": assistant_text, "timestamp": now_iso()})
+
+#         # Generate AI title
+#         title = "New Chat"
+#         if model:
+#             try:
+#                 response = model.generate_content(
+#                     contents=f"Create a short 3–7 word title summarizing this chat clearly: {assistant_text}"
+#                 )
+#                 generated = getattr(response, "text", "").strip()
+#                 if generated:
+#                     title = generated if len(generated) <= 50 else generated[:50].rsplit(" ", 1)[0] + "..."
+#             except Exception as e:
+#                 print(f"❌ AI title generation failed: {e}")
+#                 title = " ".join(assistant_text.split()[:10])
+
+#         session_ref.update({"title": title, "last_updated": now_iso()})
+
+#     except Exception as e:
+#         print(f"❌ Failed to save messages or update title: {e}")
+
+
+# # --- Auth endpoints ---
+# @app.route("/api/auth/register", methods=["POST"])
+# def register():
+#     data = request.json or {}
+#     username = data.get("username", "").strip()
+#     email = data.get("email", "").strip().lower()
+#     password = data.get("password", "")
+#     full_name = data.get("full_name", "").strip()
+
+#     if len(username) < 3: return create_response({"error": "Username too short"}, 400)
+#     if "@" not in email: return create_response({"error": "Invalid email"}, 400)
+#     if len(password) < 6: return create_response({"error": "Password too short"}, 400)
+#     if not full_name: return create_response({"error": "Full name required"}, 400)
+
+#     users_ref = db.collection("users")
+#     if users_ref.where("username", "==", username).limit(1).get(): return create_response({"error": "Username exists"}, 400)
+#     if users_ref.where("email", "==", email).limit(1).get(): return create_response({"error": "Email exists"}, 400)
+
+#     user_id = str(uuid.uuid4())
+#     password_hash = hash_password(password)
+#     user_data = {
+#         "username": username,
+#         "email": email,
+#         "password_hash": password_hash,
+#         "full_name": full_name,
+#         "is_admin": False,
+#         "is_active": True,
+#         "bio": "",
+#         "profile_picture": None,
+#         "created_at": now_iso(),
+#         "last_login": None
+#     }
+
+#     # Make first user admin
+#     if not users_ref.limit(1).get(): user_data["is_admin"] = True
+
+#     db.collection("users").document(user_id).set(user_data)
+#     access = create_access_token(user_id)
+#     refresh = create_refresh_token(user_id)
+#     return create_response({
+#         "success": True,
+#         "access": access,
+#         "refresh": refresh,
+#         "user": get_current_user(user_id)
+#     })
+
+# @app.route("/api/auth/login", methods=["POST"])
+# def login():
+#     data = request.json or {}
+#     username_or_email = data.get("username", "").strip().lower()
+#     password = data.get("password", "")
+
+#     users_ref = db.collection("users")
+#     user_query = users_ref.where("username", "==", username_or_email).limit(1).get()
+#     if not user_query:
+#         user_query = users_ref.where("email", "==", username_or_email).limit(1).get()
+#     if not user_query:
+#         return create_response({"error": "Invalid credentials"}, 401)
+
+#     user_doc = user_query[0]
+#     user_data = user_doc.to_dict()
+#     if not user_data.get("is_active", True):
+#         return create_response({"error": "Account deactivated"}, 401)
+#     if not verify_password(password, user_data["password_hash"]):
+#         return create_response({"error": "Invalid credentials"}, 401)
+
+#     # Login
+#     db.collection("users").document(user_doc.id).update({"last_login": now_iso()})
+#     access = create_access_token(user_doc.id)
+#     refresh = create_refresh_token(user_doc.id)
+#     return create_response({"success": True, "access": access, "refresh": refresh, "user": get_current_user(user_doc.id)})
+
+# @app.route("/api/auth/refresh", methods=["POST"])
+# def refresh_token():
+#     data = request.json or {}
+#     refresh = data.get("refresh")
+#     if not refresh: return create_response({"error": "Refresh token required"}, 400)
+#     payload = decode_jwt(refresh, expected_type="refresh")
+#     if not payload or "user_id" not in payload: return create_response({"error": "Invalid or expired refresh token"}, 401)
+#     return create_response({"success": True, "access": create_access_token(payload["user_id"])})
+
+# @app.route("/api/auth/me", methods=["GET"])
+# @jwt_required
+# def me():
+#     user = get_current_user(request.user_id)
+#     if not user: return create_response({"error": "User not found"}, 404)
+#     return create_response({"user": user})
+
+# @app.route("/api/auth/profile", methods=["PUT"])
+# @jwt_required
+# def update_profile():
+#     data = request.json or {}
+#     updates = {}
+#     if "full_name" in data and data["full_name"].strip(): updates["full_name"] = data["full_name"].strip()
+#     if "bio" in data: updates["bio"] = data["bio"].strip()
+#     if "profile_picture" in data: updates["profile_picture"] = data["profile_picture"]
+#     if updates: db.collection("users").document(request.user_id).update(updates)
+#     return create_response({"success": True, "message": "Profile updated"})
+
+# # --- Create a new chat session ---
+# @app.route("/api/new_session", methods=["POST"])
+# @jwt_required
+# def new_session():
+#     session_id = str(uuid.uuid4())
+#     user_id = request.user_id
+
+#     session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+#     session_ref.set({
+#         "title": "New Chat",
+#         "created_at": now_iso(),
+#         "last_updated": now_iso()
+#     })
+
+#     # Generate AI title immediately
+#     save_messages_and_title(user_id, session_id, "", "")
+
+#     return create_response({"id": session_id, "title": "New Chat"}, 201)
+
+# @app.route("/api/get_sessions", methods=["GET"])
+# @jwt_required
+# def get_sessions():
+#     sessions_ref = db.collection("users").document(request.user_id).collection("sessions")
+#     sessions = [{"id": doc.id, "title": doc.to_dict().get("title","Untitled"), "last_updated": doc.to_dict().get("last_updated")} for doc in sessions_ref.stream()]
+#     sessions.sort(key=lambda x: x['last_updated'], reverse=True)
+#     return create_response(sessions)
+
+# @app.route("/api/get_messages", methods=["GET"])
+# @jwt_required
+# def get_messages():
+#     session_id = request.args.get("sessionId")
+#     if not session_id: return create_response({"error":"sessionId required"},400)
+#     msgs_ref = db.collection("users").document(request.user_id).collection("sessions").document(session_id).collection("messages").order_by("timestamp")
+#     messages=[{"role": d.to_dict().get("role"),"content": d.to_dict().get("content"),"timestamp": d.to_dict().get("timestamp")} for d in msgs_ref.stream()]
+#     return create_response(messages)
+
+# @app.route("/api/rename_session", methods=["POST"])
+# @jwt_required
+# def rename_session():
+#     data = request.json or {}
+#     session_id = data.get("sessionId")
+#     title = data.get("title")
+#     if not session_id or not title:
+#         return create_response({"error": "sessionId and title required"}, 400)
+
+#     db.collection("users").document(request.user_id).collection("sessions").document(session_id).update({
+#         "title": title,
+#         "last_updated": now_iso()
+#     })
+#     return create_response({"message": "Session renamed"})
+
+# @app.route("/api/delete_session", methods=["DELETE"])
+# @jwt_required
+# def delete_session():
+#     session_id = request.args.get("sessionId")
+#     if not session_id: return create_response({"error":"sessionId required"},400)
+#     session_ref = db.collection("users").document(request.user_id).collection("sessions").document(session_id)
+#     for doc in session_ref.collection("messages").stream(): doc.reference.delete()
+#     session_ref.delete()
+#     return create_response({"message":"Session deleted"})
+
+# # --- Streaming chat endpoint ---
+# # --- Streaming chat endpoint ---
+# @app.route('/api/chat/stream', methods=['POST', 'OPTIONS'])
+# @jwt_required
+# def api_chat_stream():
+#     if request.method == 'OPTIONS':
+#         return create_response({}, 200)
+#     if not db or not model:
+#         return create_response({"error": "Backend not ready"}, 500)
+
+#     user_id = request.user_id
+#     data = request.json or {}
+#     session_id = data.get("sessionId")
+#     prompt = data.get("prompt", "")
+
+#     if not session_id or not prompt:
+#         return create_response({"error": "sessionId and prompt required"}, 400)
+
+#     # Load chat history
+#     messages_ref = (
+#         db.collection("users").document(user_id)
+#         .collection("sessions").document(session_id)
+#         .collection("messages").order_by("timestamp")
+#     )
+#     history = [{"role": d.to_dict()["role"], "content": d.to_dict()["content"]} for d in messages_ref.stream()]
+
+#     def generate():
+#         try:
+#             yield f"data: {json.dumps({'status': 'started'})}\n\n"
+
+#             combined_prompt = "\n".join([f"{m['role']}: {m['content']}" for m in history])
+#             combined_prompt += f"\nuser: {prompt}\nassistant:"
+
+#             # Generate AI response
+#             response = model.generate_content(contents=combined_prompt)
+#             full_response = getattr(response, "text", "").strip()
+
+#             # Stream partial/full response
+#             yield f"data: {json.dumps({'delta': full_response})}\n\n"
+#             yield f"data: {json.dumps({'done': True, 'final': full_response})}\n\n"
+
+#             # Save messages + title in background
+#             threading.Thread(target=save_messages_and_title, args=(user_id, session_id, prompt, full_response), daemon=True).start()
+
+#         except Exception as e:
+#             yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+#     return Response(generate(), mimetype="text/event-stream")
+
+# # --- Get chat history ---
+# @app.route('/api/get_history', methods=['GET'])
+# @jwt_required
+# def api_get_history():
+#     session_id = request.args.get("sessionId")
+#     if not session_id:
+#         return create_response({"error": "sessionId required"}, 400)
+
+#     user_id = request.user_id
+#     try:
+#         messages_ref = (
+#             db.collection("users").document(user_id)
+#             .collection("sessions").document(session_id)
+#             .collection("messages")
+#             .order_by("timestamp")
+#         )
+#         messages = [
+#             {
+#                 "role": d.to_dict().get("role", "assistant"),
+#                 "content": d.to_dict().get("content", ""),
+#                 "timestamp": d.to_dict().get("timestamp")
+#             }
+#             for d in messages_ref.stream()
+#         ]
+#         return create_response({"messages": messages})
+#     except Exception as e:
+#         return create_response({"error": f"Failed to get history: {str(e)}"}, 500)
+
+
+# # --- Clear chat history ---
+# @app.route('/api/clear_chat', methods=['POST'])
+# @jwt_required
+# def api_clear_chat():
+#     data = request.json or {}
+#     session_id = data.get("sessionId")
+#     if not session_id:
+#         return create_response({"error": "sessionId required"}, 400)
+
+#     user_id = request.user_id
+#     try:
+#         session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+#         for doc in session_ref.collection("messages").stream():
+#             doc.reference.delete()
+#         session_ref.update({"last_updated": now_iso()})
+#         return create_response({"success": True, "message": "Chat cleared successfully"})
+#     except Exception as e:
+#         return create_response({"error": f"Failed to clear chat: {str(e)}"}, 500)
+
+# # --- Admin routes ---
+# @app.route("/api/admin/users", methods=["GET"])
+# @jwt_required
+# @admin_required
+# def get_all_users():
+#     users = []
+#     for doc in db.collection("users").stream():
+#         u = doc.to_dict(); u["id"]=doc.id; u.pop("password_hash",None)
+#         users.append(u)
+#     return create_response({"users": users})
+
+# @app.route("/api/admin/users/<user_id>/toggle-admin", methods=["POST"])
+# @jwt_required
+# @admin_required
+# def toggle_admin(user_id):
+#     ref = db.collection("users").document(user_id)
+#     doc = ref.get()
+#     if not doc.exists: return create_response({"error":"User not found"},404)
+#     new_status = not doc.to_dict().get("is_admin",False)
+#     ref.update({"is_admin": new_status})
+#     return create_response({"success":True, "message": f"User {'promoted' if new_status else 'demoted'} admin"})
+
+# @app.route("/api/admin/users/<user_id>/toggle-active", methods=["POST"])
+# @jwt_required
+# @admin_required
+# def toggle_active(user_id):
+#     ref = db.collection("users").document(user_id)
+#     doc = ref.get()
+#     if not doc.exists: return create_response({"error":"User not found"},404)
+#     new_status = not doc.to_dict().get("is_active",True)
+#     ref.update({"is_active": new_status})
+#     return create_response({"success":True, "message": f"User {'activated' if new_status else 'deactivated'}"})
+
+# # --- Serve React frontend ---
+# @app.route("/", defaults={"path": ""})
+# @app.route("/<path:path>")
+# def catch_all(path):
+#     if path.startswith("api/"):
+#         return jsonify({"error": "API endpoint not found"}), 404
+#     return send_file(os.path.join(app.static_folder, "index.html"))
+
+# @app.errorhandler(404)
+# def handle_404(e):
+#     # If the URL starts with /api/, return JSON
+#     if request.path.startswith("/api/"):
+#         return jsonify({"error": "API endpoint not found"}), 404
+#     # Otherwise, serve React index.html
+#     return send_file(os.path.join(app.static_folder, "index.html"))
+
+
+# # --- Health ---
+# @app.route("/health", methods=["GET"])
+# def health():
+#     return create_response({
+#         "status":"healthy",
+#         "environment":"production" if IS_PROD else "development",
+#         "firebase_connected": db is not None,
+#         "gemini_connected": model is not None,
+#         "cors_origins": allowed_origins
+#     })
+
+# # --- Run server ---
+# if __name__=="__main__":
+#     port = int(os.environ.get("PORT",5000))
+#     debug_mode = not IS_PROD
+#     app.run(host="0.0.0.0", port=port, debug=debug_mode)
+
+# import os
+# import io
+# import json
+# import uuid
+# import hashlib
+# import secrets
+# import threading
+# from datetime import datetime, timedelta, timezone
+# from functools import wraps
+
+# from flask import Flask, request, jsonify, Response, send_file
+# from flask_cors import CORS
+# from dotenv import load_dotenv
+# import google.generativeai as genai
+# import firebase_admin
+# from firebase_admin import credentials, firestore
+# import jwt
+# from cachetools import TTLCache
+
+# # --- Load environment ---
+# load_dotenv()
+# frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'aura-frontend', 'dist'))
+# app = Flask(__name__, static_folder=frontend_dir, static_url_path='')
+# app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+# # --- Environment detection ---
+# FLASK_ENV = os.environ.get("FLASK_ENV", "development")
+# IS_PROD = FLASK_ENV == "production" or os.environ.get("NODE_ENV") == "production"
+
+# # --- CORS ---
+# def get_allowed_origins():
+#     if IS_PROD:
+#         frontend_url = os.environ.get('FRONTEND_URL')
+#         return [frontend_url] if frontend_url else ['*']
+#     return ['http://localhost:5173','http://127.0.0.1:5173','http://localhost:3000','http://127.0.0.1:3000']
+
+# allowed_origins = get_allowed_origins()
+# CORS(app, origins=allowed_origins, supports_credentials=True,
+#      allow_headers=['Content-Type','Authorization','X-Requested-With','Accept'],
+#      methods=['GET','POST','PUT','DELETE','OPTIONS'],
+#      expose_headers=['Content-Type'])
+
+# # --- Firebase ---
+# try:
+#     if not firebase_admin._apps:
+#         service_account_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+#         if service_account_json:
+#             cred_dict = json.loads(service_account_json)
+#             if "private_key" in cred_dict:
+#                 cred_dict["private_key"] = cred_dict["private_key"].replace("\\n","\n")
+#             cred = credentials.Certificate(cred_dict)
+#         else:
+#             cred = credentials.Certificate("firebase-service-account.json")
+#         firebase_admin.initialize_app(cred)
+#         db = firestore.client()
+#         print("✅ Firebase initialized.")
+# except Exception as e:
+#     print(f"❌ Firebase init failed: {e}")
+#     db = None
+
+# # --- Gemini AI ---
+# try:
+#     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+#     model = genai.GenerativeModel('gemini-2.0-flash-exp')
+#     print("✅ Gemini AI configured.")
+# except Exception as e:
+#     print(f"❌ Gemini init failed: {e}")
+#     model = None
+
+# # --- Caches ---
+# sessions_cache = TTLCache(maxsize=100, ttl=10)
+# messages_cache = TTLCache(maxsize=500, ttl=10)
+# users_cache = TTLCache(maxsize=100, ttl=30)
+
+# # --- Helpers ---
+# def now_iso(): return datetime.now(timezone.utc).isoformat()
+
+# def create_response(data, status=200):
+#     resp = jsonify(data)
+#     resp.status_code = status
+#     return resp
+
+# def hash_password(password):
+#     salt = secrets.token_hex(16)
+#     hash_hex = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+#     return f"{salt}:{hash_hex}"
+
+# def verify_password(password, hashed):
+#     try:
+#         salt, hash_hex = hashed.split(":")
+#         return hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex() == hash_hex
+#     except:
+#         return False
+
+# def create_access_token(user_id, expires_in=3600*24*7):
+#     payload = {"user_id": user_id, "exp": datetime.utcnow()+timedelta(seconds=expires_in), "type":"access"}
+#     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+# def create_refresh_token(user_id, expires_in=3600*24*30):
+#     payload = {"user_id": user_id, "exp": datetime.utcnow()+timedelta(seconds=expires_in), "type":"refresh"}
+#     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
+
+# def decode_jwt(token, expected_type=None):
+#     try:
+#         payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
+#         if expected_type and payload.get("type") != expected_type: return None
+#         return payload
+#     except: return None
+
+# # --- Decorators ---
+# def jwt_required(f):
+#     @wraps(f)
+#     def wrapper(*args, **kwargs):
+#         if request.method=="OPTIONS": return create_response({}, 200)
+#         auth_header = request.headers.get("Authorization","")
+#         if not auth_header.startswith("Bearer "): return create_response({"error":"Missing or invalid token"},401)
+#         token = auth_header.split(" ")[1]
+#         payload = decode_jwt(token, expected_type="access")
+#         if not payload or "user_id" not in payload: return create_response({"error":"Invalid or expired token"},401)
+#         request.user_id = payload["user_id"]
+#         return f(*args, **kwargs)
+#     return wrapper
+
+# def admin_required(f):
+#     @wraps(f)
+#     def wrapper(*args, **kwargs):
+#         user_ref = db.collection("users").document(request.user_id)
+#         doc = user_ref.get()
+#         if not doc.exists or not doc.to_dict().get("is_admin",False):
+#             return create_response({"error":"Admin privileges required"},403)
+#         return f(*args, **kwargs)
+#     return wrapper
+
+# # --- Caching helpers ---
+# def get_cached_user(user_id):
+#     if user_id in users_cache: return users_cache[user_id]
+#     user = get_current_user(user_id)
+#     if user: users_cache[user_id] = user
+#     return user
+
+# def get_cached_sessions(user_id):
+#     if user_id in sessions_cache: return sessions_cache[user_id]
+#     sessions_ref = db.collection("users").document(user_id).collection("sessions")
+#     sessions = [{"id": doc.id, "title": doc.to_dict().get("title","Untitled"), "last_updated": doc.to_dict().get("last_updated")} for doc in sessions_ref.stream()]
+#     sessions.sort(key=lambda x: x['last_updated'], reverse=True)
+#     sessions_cache[user_id] = sessions
+#     return sessions
+
+# def get_cached_messages(user_id, session_id, limit=20):
+#     key = f"{user_id}:{session_id}"
+#     if key in messages_cache: return messages_cache[key]
+#     msgs_ref = db.collection("users").document(user_id).collection("sessions").document(session_id).collection("messages").order_by("timestamp")
+#     messages = [{"role": d.to_dict().get("role"), "content": d.to_dict().get("content"), "timestamp": d.to_dict().get("timestamp")} for d in msgs_ref.stream()]
+#     if limit: messages = messages[-limit:]
+#     messages_cache[key] = messages
+#     return messages
+
+# def build_combined_prompt(history, user_prompt, limit=10):
+#     recent_history = history[-limit:]
+#     combined = "\n".join([f"{m['role']}: {m['content']}" for m in recent_history])
+#     combined += f"\nuser: {user_prompt}\nassistant:"
+#     return combined
+
+# def batch_delete_collection(ref, batch_size=500):
+#     docs = list(ref.stream())
+#     for i in range(0, len(docs), batch_size):
+#         batch = db.batch()
+#         for doc in docs[i:i+batch_size]:
+#             batch.delete(doc.reference)
+#         batch.commit()
+
+# # --- Firebase helpers ---
+# def get_current_user(user_id):
+#     try:
+#         user_doc = db.collection("users").document(user_id).get()
+#         if not user_doc.exists: return None
+#         data = user_doc.to_dict()
+#         data["id"] = user_id
+#         data.pop("password_hash", None)
+#         return data
+#     except: return None
+
+# def save_messages_and_title(user_id, session_id, prompt, assistant_text):
+#     try:
+#         messages_collection = db.collection("users").document(user_id).collection("sessions").document(session_id).collection("messages")
+#         session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+
+#         messages_collection.add({"role":"user","content":prompt,"timestamp":now_iso()})
+#         messages_collection.add({"role":"assistant","content":assistant_text,"timestamp":now_iso()})
+
+#         title = "New Chat"
+#         if model:
+#             try:
+#                 response = model.generate_content(contents=f"Create a short 3–7 word title summarizing this chat clearly: {assistant_text}")
+#                 generated = getattr(response,"text","").strip()
+#                 if generated: title = generated[:50].rsplit(" ",1)[0]+"..." if len(generated)>50 else generated
+#             except: title = " ".join(assistant_text.split()[:10])
+
+#         session_ref.update({"title": title,"last_updated":now_iso()})
+
+#         # invalidate cache
+#         key = f"{user_id}:{session_id}"
+#         if key in messages_cache: del messages_cache[key]
+#         if user_id in sessions_cache: del sessions_cache[user_id]
+#     except Exception as e:
+#         print(f"❌ Failed to save messages or update title: {e}")
+
+# # --- Auth endpoints ---
+# @app.route("/api/auth/register", methods=["POST"])
+# def register():
+#     data = request.json or {}
+#     username = data.get("username","").strip()
+#     email = data.get("email","").strip().lower()
+#     password = data.get("password","")
+#     full_name = data.get("full_name","").strip()
+#     if len(username)<3: return create_response({"error":"Username too short"},400)
+#     if "@" not in email: return create_response({"error":"Invalid email"},400)
+#     if len(password)<6: return create_response({"error":"Password too short"},400)
+#     if not full_name: return create_response({"error":"Full name required"},400)
+
+#     users_ref = db.collection("users")
+#     if users_ref.where("username","==",username).limit(1).get(): return create_response({"error":"Username exists"},400)
+#     if users_ref.where("email","==",email).limit(1).get(): return create_response({"error":"Email exists"},400)
+
+#     user_id = str(uuid.uuid4())
+#     password_hash = hash_password(password)
+#     user_data = {"username":username,"email":email,"password_hash":password_hash,"full_name":full_name,"is_admin":False,"is_active":True,"bio":"","profile_picture":None,"created_at":now_iso(),"last_login":None}
+#     if not users_ref.limit(1).get(): user_data["is_admin"]=True
+
+#     db.collection("users").document(user_id).set(user_data)
+#     access = create_access_token(user_id)
+#     refresh = create_refresh_token(user_id)
+#     return create_response({"success":True,"access":access,"refresh":refresh,"user":get_cached_user(user_id)})
+
+# @app.route("/api/auth/login", methods=["POST"])
+# def login():
+#     data = request.json or {}
+#     username_or_email = data.get("username","").strip().lower()
+#     password = data.get("password","")
+
+#     users_ref = db.collection("users")
+#     user_query = users_ref.where("username","==",username_or_email).limit(1).get()
+#     if not user_query: user_query = users_ref.where("email","==",username_or_email).limit(1).get()
+#     if not user_query: return create_response({"error":"Invalid credentials"},401)
+
+#     user_doc = user_query[0]
+#     user_data = user_doc.to_dict()
+#     if not user_data.get("is_active",True): return create_response({"error":"Account deactivated"},401)
+#     if not verify_password(password,user_data["password_hash"]): return create_response({"error":"Invalid credentials"},401)
+
+#     db.collection("users").document(user_doc.id).update({"last_login": now_iso()})
+#     access = create_access_token(user_doc.id)
+#     refresh = create_refresh_token(user_doc.id)
+#     return create_response({"success":True,"access":access,"refresh":refresh,"user":get_cached_user(user_doc.id)})
+
+# @app.route("/api/auth/refresh", methods=["POST"])
+# def refresh_token():
+#     data = request.json or {}
+#     refresh = data.get("refresh")
+#     if not refresh: return create_response({"error":"Refresh token required"},400)
+#     payload = decode_jwt(refresh, expected_type="refresh")
+#     if not payload or "user_id" not in payload: return create_response({"error":"Invalid or expired refresh token"},401)
+#     return create_response({"success":True,"access":create_access_token(payload["user_id"])})
+
+# @app.route("/api/auth/me", methods=["GET"])
+# @jwt_required
+# def me():
+#     user = get_cached_user(request.user_id)
+#     if not user: return create_response({"error":"User not found"},404)
+#     return create_response({"user":user})
+
+# @app.route("/api/auth/profile", methods=["PUT"])
+# @jwt_required
+# def update_profile():
+#     data = request.json or {}
+#     updates = {}
+#     if "full_name" in data and data["full_name"].strip(): updates["full_name"] = data["full_name"].strip()
+#     if "bio" in data: updates["bio"] = data["bio"].strip()
+#     if "profile_picture" in data: updates["profile_picture"] = data["profile_picture"]
+#     if updates: db.collection("users").document(request.user_id).update(updates)
+#     if request.user_id in users_cache: del users_cache[request.user_id]
+#     return create_response({"success":True,"message":"Profile updated"})
+
+# # --- Sessions endpoints ---
+# @app.route("/api/new_session", methods=["POST"])
+# @jwt_required
+# def new_session():
+#     session_id = str(uuid.uuid4())
+#     user_id = request.user_id
+#     session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+#     session_ref.set({"title":"New Chat","created_at":now_iso(),"last_updated":now_iso()})
+#     save_messages_and_title(user_id, session_id, "", "")
+#     return create_response({"id":session_id,"title":"New Chat"},201)
+
+# @app.route("/api/get_sessions", methods=["GET"])
+# @jwt_required
+# def get_sessions():
+#     return create_response(get_cached_sessions(request.user_id))
+
+# @app.route("/api/get_messages", methods=["GET"])
+# @jwt_required
+# def get_messages():
+#     session_id = request.args.get("sessionId")
+#     if not session_id: return create_response({"error":"sessionId required"},400)
+#     return create_response(get_cached_messages(request.user_id, session_id))
+
+# @app.route("/api/clear_chat", methods=["POST"])
+# @jwt_required
+# def api_clear_chat():
+#     data = request.json or {}
+#     session_id = data.get("sessionId")
+#     if not session_id: return create_response({"error":"sessionId required"},400)
+#     user_id = request.user_id
+#     try:
+#         session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+#         batch_delete_collection(session_ref.collection("messages"))
+#         session_ref.update({"last_updated": now_iso()})
+#         key = f"{user_id}:{session_id}"
+#         if key in messages_cache: del messages_cache[key]
+#         return create_response({"success": True, "message": "Chat cleared successfully"})
+#     except Exception as e:
+#         return create_response({"error": f"Failed to clear chat: {str(e)}"},500)
+
+# # --- Streaming chat ---
+# @app.route('/api/chat/stream', methods=['POST','OPTIONS'])
+# @jwt_required
+# def api_chat_stream():
+#     if request.method=='OPTIONS': return create_response({},200)
+#     if not db or not model: return create_response({"error":"Backend not ready"},500)
+#     user_id = request.user_id
+#     data = request.json or {}
+#     session_id = data.get("sessionId")
+#     prompt = data.get("prompt","")
+#     if not session_id or not prompt: return create_response({"error":"sessionId and prompt required"},400)
+#     history = get_cached_messages(user_id, session_id)
+
+#     def generate():
+#         try:
+#             yield f"data: {json.dumps({'status':'started'})}\n\n"
+#             combined_prompt = build_combined_prompt(history, prompt, limit=10)
+#             response = model.generate_content(contents=combined_prompt)
+#             full_response = getattr(response,"text","").strip()
+#             yield f"data: {json.dumps({'delta':full_response})}\n\n"
+#             yield f"data: {json.dumps({'done':True,'final':full_response})}\n\n"
+#             threading.Thread(target=save_messages_and_title, args=(user_id, session_id, prompt, full_response), daemon=True).start()
+#         except Exception as e:
+#             yield f"data: {json.dumps({'error':str(e)})}\n\n"
+
+#     return Response(generate(), mimetype="text/event-stream")
+
+# # --- React frontend ---
+# @app.route("/", defaults={"path":""})
+# @app.route("/<path:path>")
+# def catch_all(path):
+#     if path.startswith("api/"): return jsonify({"error":"API endpoint not found"}),404
+#     return send_file(os.path.join(app.static_folder, "index.html"))
+
+# @app.errorhandler(404)
+# def handle_404(e):
+#     if request.path.startswith("/api/"): return jsonify({"error":"API endpoint not found"}),404
+#     return send_file(os.path.join(app.static_folder, "index.html"))
+
+# # --- Health ---
+# @app.route("/health", methods=["GET"])
+# def health():
+#     return create_response({
+#         "status":"healthy",
+#         "environment":"production" if IS_PROD else "development",
+#         "firebase_connected": db is not None,
+#         "gemini_connected": model is not None,
+#         "cors_origins": allowed_origins
+#     })
+
+# # --- Run server ---
+# if __name__=="__main__":
+#     port = int(os.environ.get("PORT",5000))
+#     debug_mode = not IS_PROD
+#     app.run(host="0.0.0.0", port=port, debug=debug_mode)
+
 import os
 import io
 import json
-import base64
 import uuid
 import hashlib
 import secrets
@@ -1896,14 +2789,14 @@ import threading
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import Flask, request, jsonify, Response,send_from_directory,send_file
+from flask import Flask, request, jsonify, Response, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
-from PIL import Image
 import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 import jwt
+from cachetools import TTLCache
 
 # --- Load environment ---
 load_dotenv()
@@ -1918,22 +2811,13 @@ IS_PROD = FLASK_ENV == "production" or os.environ.get("NODE_ENV") == "production
 # --- CORS ---
 def get_allowed_origins():
     if IS_PROD:
-        origins = []
         frontend_url = os.environ.get('FRONTEND_URL')
-        if frontend_url:
-            origins.append(frontend_url)
-        return origins if origins else ['*']
-    else:
-        return [
-            'http://localhost:5173',
-            'http://127.0.0.1:5173',
-            'http://localhost:3000',
-            'http://127.0.0.1:3000'
-        ]
+        return [frontend_url] if frontend_url else ['*']
+    return ['http://localhost:5173','http://127.0.0.1:5173','http://localhost:3000','http://127.0.0.1:3000']
 
 allowed_origins = get_allowed_origins()
 CORS(app, origins=allowed_origins, supports_credentials=True,
-     allow_headers=['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+     allow_headers=['Content-Type','Authorization','X-Requested-With','Accept'],
      methods=['GET','POST','PUT','DELETE','OPTIONS'],
      expose_headers=['Content-Type'])
 
@@ -1944,7 +2828,7 @@ try:
         if service_account_json:
             cred_dict = json.loads(service_account_json)
             if "private_key" in cred_dict:
-                cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+                cred_dict["private_key"] = cred_dict["private_key"].replace("\\n","\n")
             cred = credentials.Certificate(cred_dict)
         else:
             cred = credentials.Certificate("firebase-service-account.json")
@@ -1964,15 +2848,18 @@ except Exception as e:
     print(f"❌ Gemini init failed: {e}")
     model = None
 
-# --- Helpers ---
+# --- Caches ---
+sessions_cache = TTLCache(maxsize=100, ttl=10)
+messages_cache = TTLCache(maxsize=500, ttl=10)
+users_cache = TTLCache(maxsize=100, ttl=30)
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+# --- Helpers ---
+def now_iso(): return datetime.now(timezone.utc).isoformat()
 
 def create_response(data, status=200):
-    response = jsonify(data)
-    response.status_code = status
-    return response
+    resp = jsonify(data)
+    resp.status_code = status
+    return resp
 
 def hash_password(password):
     salt = secrets.token_hex(16)
@@ -1987,37 +2874,30 @@ def verify_password(password, hashed):
         return False
 
 def create_access_token(user_id, expires_in=3600*24*7):
-    payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(seconds=expires_in), "type": "access"}
+    payload = {"user_id": user_id, "exp": datetime.utcnow()+timedelta(seconds=expires_in), "type":"access"}
     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
 
 def create_refresh_token(user_id, expires_in=3600*24*30):
-    payload = {"user_id": user_id, "exp": datetime.utcnow() + timedelta(seconds=expires_in), "type": "refresh"}
+    payload = {"user_id": user_id, "exp": datetime.utcnow()+timedelta(seconds=expires_in), "type":"refresh"}
     return jwt.encode(payload, app.config["SECRET_KEY"], algorithm="HS256")
 
 def decode_jwt(token, expected_type=None):
     try:
         payload = jwt.decode(token, app.config["SECRET_KEY"], algorithms=["HS256"])
-        if expected_type and payload.get("type") != expected_type:
-            return None
+        if expected_type and payload.get("type") != expected_type: return None
         return payload
-    except Exception:
-        return None
+    except: return None
 
 # --- Decorators ---
 def jwt_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        # Allow OPTIONS requests to pass for CORS preflight
-        if request.method == "OPTIONS":
-            return create_response({}, 200)
-
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return create_response({"error": "Missing or invalid token"}, 401)
+        if request.method=="OPTIONS": return create_response({}, 200)
+        auth_header = request.headers.get("Authorization","")
+        if not auth_header.startswith("Bearer "): return create_response({"error":"Missing or invalid token"},401)
         token = auth_header.split(" ")[1]
         payload = decode_jwt(token, expected_type="access")
-        if not payload or "user_id" not in payload:
-            return create_response({"error": "Invalid or expired token"}, 401)
+        if not payload or "user_id" not in payload: return create_response({"error":"Invalid or expired token"},401)
         request.user_id = payload["user_id"]
         return f(*args, **kwargs)
     return wrapper
@@ -2027,142 +2907,154 @@ def admin_required(f):
     def wrapper(*args, **kwargs):
         user_ref = db.collection("users").document(request.user_id)
         doc = user_ref.get()
-        if not doc.exists or not doc.to_dict().get("is_admin", False):
-            return create_response({"error": "Admin privileges required"}, 403)
+        if not doc.exists or not doc.to_dict().get("is_admin",False):
+            return create_response({"error":"Admin privileges required"},403)
         return f(*args, **kwargs)
     return wrapper
 
+# --- Caching helpers ---
+def get_cached_user(user_id):
+    if user_id in users_cache: return users_cache[user_id]
+    user = get_current_user(user_id)
+    if user: users_cache[user_id] = user
+    return user
+
+def get_cached_sessions(user_id):
+    if user_id in sessions_cache: return sessions_cache[user_id]
+    sessions_ref = db.collection("users").document(user_id).collection("sessions")
+    sessions = [{"id": doc.id, "title": doc.to_dict().get("title","Untitled"), "last_updated": doc.to_dict().get("last_updated")} for doc in sessions_ref.stream()]
+    sessions.sort(key=lambda x: x['last_updated'], reverse=True)
+    sessions_cache[user_id] = sessions
+    return sessions
+
+def get_cached_messages(user_id, session_id, limit=50):
+    key = f"{user_id}:{session_id}"
+    if key in messages_cache:
+        return messages_cache[key]
+
+    msgs_ref = db.collection("users").document(user_id).collection("sessions") \
+                 .document(session_id).collection("messages") \
+                 .order_by("timestamp", direction=firestore.Query.DESCENDING).limit(limit)
+    messages = [{"role": d.to_dict().get("role"), 
+                 "content": d.to_dict().get("content"), 
+                 "timestamp": d.to_dict().get("timestamp")} for d in msgs_ref.stream()]
+    messages.reverse()  # Because we fetched in DESC order
+    messages_cache[key] = messages
+    return messages
+
+
+def build_combined_prompt(history, user_prompt, limit=10):
+    recent_history = history[-limit:]
+    combined = "\n".join([f"{m['role']}: {m['content']}" for m in recent_history])
+    combined += f"\nuser: {user_prompt}\nassistant:"
+    return combined
+
+def batch_delete_collection(ref, batch_size=500):
+    docs = list(ref.stream())
+    for i in range(0, len(docs), batch_size):
+        batch = db.batch()
+        for doc in docs[i:i+batch_size]:
+            batch.delete(doc.reference)
+        batch.commit()
+
+# --- Firebase helpers ---
 def get_current_user(user_id):
     try:
         user_doc = db.collection("users").document(user_id).get()
         if not user_doc.exists: return None
-        user_data = user_doc.to_dict()
-        user_data["id"] = user_id
-        user_data.pop("password_hash", None)
-        return user_data
+        data = user_doc.to_dict()
+        data["id"] = user_id
+        data.pop("password_hash", None)
+        return data
     except: return None
 
-# --- Utility to save messages & generate AI title ---
 def save_messages_and_title(user_id, session_id, prompt, assistant_text):
     try:
-        messages_collection = (
-            db.collection("users").document(user_id)
-            .collection("sessions").document(session_id)
-            .collection("messages")
-        )
+        messages_collection = db.collection("users").document(user_id).collection("sessions").document(session_id).collection("messages")
         session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
 
-        # Save user + assistant messages
-        messages_collection.add({"role": "user", "content": prompt, "timestamp": now_iso()})
-        messages_collection.add({"role": "assistant", "content": assistant_text, "timestamp": now_iso()})
+        messages_collection.add({"role":"user","content":prompt,"timestamp":now_iso()})
+        messages_collection.add({"role":"assistant","content":assistant_text,"timestamp":now_iso()})
 
-        # Generate AI title
         title = "New Chat"
-        if model:
+        if model and assistant_text.strip():
             try:
-                response = model.generate_content(
-                    contents=f"Create a short 3–7 word title summarizing this chat clearly: {assistant_text}"
-                )
-                generated = getattr(response, "text", "").strip()
-                if generated:
-                    title = generated if len(generated) <= 50 else generated[:50].rsplit(" ", 1)[0] + "..."
-            except Exception as e:
-                print(f"❌ AI title generation failed: {e}")
-                title = " ".join(assistant_text.split()[:10])
+                response = model.generate_content(contents=f"Create a short 3–7 word title summarizing this chat clearly: {assistant_text}")
+                generated = getattr(response,"text","").strip()
+                if generated: title = generated[:50].rsplit(" ",1)[0]+"..." if len(generated)>50 else generated
+            except: title = " ".join(assistant_text.split()[:10])
 
-        session_ref.update({"title": title, "last_updated": now_iso()})
+        session_ref.update({"title": title,"last_updated":now_iso()})
 
+        key = f"{user_id}:{session_id}"
+        if key in messages_cache: del messages_cache[key]
+        if user_id in sessions_cache: del sessions_cache[user_id]
     except Exception as e:
         print(f"❌ Failed to save messages or update title: {e}")
-
 
 # --- Auth endpoints ---
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data = request.json or {}
-    username = data.get("username", "").strip()
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "")
-    full_name = data.get("full_name", "").strip()
-
-    if len(username) < 3: return create_response({"error": "Username too short"}, 400)
-    if "@" not in email: return create_response({"error": "Invalid email"}, 400)
-    if len(password) < 6: return create_response({"error": "Password too short"}, 400)
-    if not full_name: return create_response({"error": "Full name required"}, 400)
+    username = data.get("username","").strip()
+    email = data.get("email","").strip().lower()
+    password = data.get("password","")
+    full_name = data.get("full_name","").strip()
+    if len(username)<3: return create_response({"error":"Username too short"},400)
+    if "@" not in email: return create_response({"error":"Invalid email"},400)
+    if len(password)<6: return create_response({"error":"Password too short"},400)
+    if not full_name: return create_response({"error":"Full name required"},400)
 
     users_ref = db.collection("users")
-    if users_ref.where("username", "==", username).limit(1).get(): return create_response({"error": "Username exists"}, 400)
-    if users_ref.where("email", "==", email).limit(1).get(): return create_response({"error": "Email exists"}, 400)
+    if users_ref.where("username","==",username).limit(1).get(): return create_response({"error":"Username exists"},400)
+    if users_ref.where("email","==",email).limit(1).get(): return create_response({"error":"Email exists"},400)
 
     user_id = str(uuid.uuid4())
     password_hash = hash_password(password)
-    user_data = {
-        "username": username,
-        "email": email,
-        "password_hash": password_hash,
-        "full_name": full_name,
-        "is_admin": False,
-        "is_active": True,
-        "bio": "",
-        "profile_picture": None,
-        "created_at": now_iso(),
-        "last_login": None
-    }
-
-    # Make first user admin
-    if not users_ref.limit(1).get(): user_data["is_admin"] = True
+    user_data = {"username":username,"email":email,"password_hash":password_hash,"full_name":full_name,"is_admin":False,"is_active":True,"bio":"","profile_picture":None,"created_at":now_iso(),"last_login":None}
+    if not users_ref.limit(1).get(): user_data["is_admin"]=True
 
     db.collection("users").document(user_id).set(user_data)
     access = create_access_token(user_id)
     refresh = create_refresh_token(user_id)
-    return create_response({
-        "success": True,
-        "access": access,
-        "refresh": refresh,
-        "user": get_current_user(user_id)
-    })
+    return create_response({"success":True,"access":access,"refresh":refresh,"user":get_cached_user(user_id)})
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
     data = request.json or {}
-    username_or_email = data.get("username", "").strip().lower()
-    password = data.get("password", "")
+    username_or_email = data.get("username","").strip().lower()
+    password = data.get("password","")
 
     users_ref = db.collection("users")
-    user_query = users_ref.where("username", "==", username_or_email).limit(1).get()
-    if not user_query:
-        user_query = users_ref.where("email", "==", username_or_email).limit(1).get()
-    if not user_query:
-        return create_response({"error": "Invalid credentials"}, 401)
+    user_query = users_ref.where("username","==",username_or_email).limit(1).get()
+    if not user_query: user_query = users_ref.where("email","==",username_or_email).limit(1).get()
+    if not user_query: return create_response({"error":"Invalid credentials"},401)
 
     user_doc = user_query[0]
     user_data = user_doc.to_dict()
-    if not user_data.get("is_active", True):
-        return create_response({"error": "Account deactivated"}, 401)
-    if not verify_password(password, user_data["password_hash"]):
-        return create_response({"error": "Invalid credentials"}, 401)
+    if not user_data.get("is_active",True): return create_response({"error":"Account deactivated"},401)
+    if not verify_password(password,user_data["password_hash"]): return create_response({"error":"Invalid credentials"},401)
 
-    # Login
     db.collection("users").document(user_doc.id).update({"last_login": now_iso()})
     access = create_access_token(user_doc.id)
     refresh = create_refresh_token(user_doc.id)
-    return create_response({"success": True, "access": access, "refresh": refresh, "user": get_current_user(user_doc.id)})
+    return create_response({"success":True,"access":access,"refresh":refresh,"user":get_cached_user(user_doc.id)})
 
 @app.route("/api/auth/refresh", methods=["POST"])
 def refresh_token():
     data = request.json or {}
     refresh = data.get("refresh")
-    if not refresh: return create_response({"error": "Refresh token required"}, 400)
+    if not refresh: return create_response({"error":"Refresh token required"},400)
     payload = decode_jwt(refresh, expected_type="refresh")
-    if not payload or "user_id" not in payload: return create_response({"error": "Invalid or expired refresh token"}, 401)
-    return create_response({"success": True, "access": create_access_token(payload["user_id"])})
+    if not payload or "user_id" not in payload: return create_response({"error":"Invalid or expired refresh token"},401)
+    return create_response({"success":True,"access":create_access_token(payload["user_id"])})
 
 @app.route("/api/auth/me", methods=["GET"])
 @jwt_required
 def me():
-    user = get_current_user(request.user_id)
-    if not user: return create_response({"error": "User not found"}, 404)
-    return create_response({"user": user})
+    user = get_cached_user(request.user_id)
+    if not user: return create_response({"error":"User not found"},404)
+    return create_response({"user":user})
 
 @app.route("/api/auth/profile", methods=["PUT"])
 @jwt_required
@@ -2173,111 +3065,82 @@ def update_profile():
     if "bio" in data: updates["bio"] = data["bio"].strip()
     if "profile_picture" in data: updates["profile_picture"] = data["profile_picture"]
     if updates: db.collection("users").document(request.user_id).update(updates)
-    return create_response({"success": True, "message": "Profile updated"})
+    if request.user_id in users_cache: del users_cache[request.user_id]
+    return create_response({"success":True,"message":"Profile updated"})
 
-# --- Create a new chat session ---
+# --- Sessions endpoints (optimized) ---
 @app.route("/api/new_session", methods=["POST"])
 @jwt_required
 def new_session():
     session_id = str(uuid.uuid4())
     user_id = request.user_id
-
     session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
     session_ref.set({
-        "title": "New Chat",
-        "created_at": now_iso(),
-        "last_updated": now_iso()
+        "title":"New Chat",
+        "created_at":now_iso(),
+        "last_updated":now_iso()
     })
-
-    # Generate AI title immediately
-    save_messages_and_title(user_id, session_id, "", "")
-
-    return create_response({"id": session_id, "title": "New Chat"}, 201)
+    # Don't generate AI title yet
+    return create_response({"id":session_id,"title":"New Chat"},201)
 
 @app.route("/api/get_sessions", methods=["GET"])
 @jwt_required
 def get_sessions():
-    sessions_ref = db.collection("users").document(request.user_id).collection("sessions")
-    sessions = [{"id": doc.id, "title": doc.to_dict().get("title","Untitled"), "last_updated": doc.to_dict().get("last_updated")} for doc in sessions_ref.stream()]
-    sessions.sort(key=lambda x: x['last_updated'], reverse=True)
-    return create_response(sessions)
+    return create_response(get_cached_sessions(request.user_id))
 
 @app.route("/api/get_messages", methods=["GET"])
 @jwt_required
 def get_messages():
     session_id = request.args.get("sessionId")
     if not session_id: return create_response({"error":"sessionId required"},400)
-    msgs_ref = db.collection("users").document(request.user_id).collection("sessions").document(session_id).collection("messages").order_by("timestamp")
-    messages=[{"role": d.to_dict().get("role"),"content": d.to_dict().get("content"),"timestamp": d.to_dict().get("timestamp")} for d in msgs_ref.stream()]
-    return create_response(messages)
+    return create_response(get_cached_messages(request.user_id, session_id))
 
-@app.route("/api/rename_session", methods=["POST"])
+@app.route("/api/clear_chat", methods=["POST"])
 @jwt_required
-def rename_session():
+def api_clear_chat():
     data = request.json or {}
     session_id = data.get("sessionId")
-    title = data.get("title")
-    if not session_id or not title:
-        return create_response({"error": "sessionId and title required"}, 400)
-
-    db.collection("users").document(request.user_id).collection("sessions").document(session_id).update({
-        "title": title,
-        "last_updated": now_iso()
-    })
-    return create_response({"message": "Session renamed"})
-
-@app.route("/api/delete_session", methods=["DELETE"])
-@jwt_required
-def delete_session():
-    session_id = request.args.get("sessionId")
     if not session_id: return create_response({"error":"sessionId required"},400)
-    session_ref = db.collection("users").document(request.user_id).collection("sessions").document(session_id)
-    for doc in session_ref.collection("messages").stream(): doc.reference.delete()
-    session_ref.delete()
-    return create_response({"message":"Session deleted"})
+    user_id = request.user_id
+    try:
+        session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+        batch_delete_collection(session_ref.collection("messages"))
+        session_ref.update({"last_updated": now_iso(), "title": "New Chat"})
+        key = f"{user_id}:{session_id}"
+        if key in messages_cache: del messages_cache[key]
+        return create_response({"success": True, "message": "Chat cleared successfully"})
+    except Exception as e:
+        return create_response({"error": f"Failed to clear chat: {str(e)}"},500)
 
-# --- Streaming chat endpoint ---
-# --- Streaming chat endpoint ---
-@app.route('/api/chat/stream', methods=['POST', 'OPTIONS'])
+# --- Streaming chat (optimized) ---
+@app.route('/api/chat/stream', methods=['POST','OPTIONS'])
 @jwt_required
 def api_chat_stream():
-    if request.method == 'OPTIONS':
-        return create_response({}, 200)
-    if not db or not model:
-        return create_response({"error": "Backend not ready"}, 500)
-
+    if request.method=='OPTIONS': return create_response({},200)
+    if not db or not model: return create_response({"error":"Backend not ready"},500)
+    
     user_id = request.user_id
     data = request.json or {}
     session_id = data.get("sessionId")
-    prompt = data.get("prompt", "")
-
+    prompt = data.get("prompt","")
     if not session_id or not prompt:
-        return create_response({"error": "sessionId and prompt required"}, 400)
+        return create_response({"error":"sessionId and prompt required"},400)
 
-    # Load chat history
-    messages_ref = (
-        db.collection("users").document(user_id)
-        .collection("sessions").document(session_id)
-        .collection("messages").order_by("timestamp")
-    )
-    history = [{"role": d.to_dict()["role"], "content": d.to_dict()["content"]} for d in messages_ref.stream()]
+    history = get_cached_messages(user_id, session_id)
 
     def generate():
         try:
-            yield f"data: {json.dumps({'status': 'started'})}\n\n"
+            yield f"data: {json.dumps({'status':'started'})}\n\n"
+            combined_prompt = build_combined_prompt(history, prompt, limit=10)
 
-            combined_prompt = "\n".join([f"{m['role']}: {m['content']}" for m in history])
-            combined_prompt += f"\nuser: {prompt}\nassistant:"
+            # Stream AI response token-by-token
+            for token in model.stream_content(combined_prompt):
+                yield f"data: {json.dumps({'delta': token})}\n\n"
 
-            # Generate AI response
-            response = model.generate_content(contents=combined_prompt)
-            full_response = getattr(response, "text", "").strip()
-
-            # Stream partial/full response
-            yield f"data: {json.dumps({'delta': full_response})}\n\n"
+            full_response = model.generate_content(combined_prompt).text.strip()
             yield f"data: {json.dumps({'done': True, 'final': full_response})}\n\n"
 
-            # Save messages + title in background
+            # Save in background
             threading.Thread(target=save_messages_and_title, args=(user_id, session_id, prompt, full_response), daemon=True).start()
 
         except Exception as e:
@@ -2285,103 +3148,17 @@ def api_chat_stream():
 
     return Response(generate(), mimetype="text/event-stream")
 
-# --- Get chat history ---
-@app.route('/api/get_history', methods=['GET'])
-@jwt_required
-def api_get_history():
-    session_id = request.args.get("sessionId")
-    if not session_id:
-        return create_response({"error": "sessionId required"}, 400)
-
-    user_id = request.user_id
-    try:
-        messages_ref = (
-            db.collection("users").document(user_id)
-            .collection("sessions").document(session_id)
-            .collection("messages")
-            .order_by("timestamp")
-        )
-        messages = [
-            {
-                "role": d.to_dict().get("role", "assistant"),
-                "content": d.to_dict().get("content", ""),
-                "timestamp": d.to_dict().get("timestamp")
-            }
-            for d in messages_ref.stream()
-        ]
-        return create_response({"messages": messages})
-    except Exception as e:
-        return create_response({"error": f"Failed to get history: {str(e)}"}, 500)
-
-
-# --- Clear chat history ---
-@app.route('/api/clear_chat', methods=['POST'])
-@jwt_required
-def api_clear_chat():
-    data = request.json or {}
-    session_id = data.get("sessionId")
-    if not session_id:
-        return create_response({"error": "sessionId required"}, 400)
-
-    user_id = request.user_id
-    try:
-        session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
-        for doc in session_ref.collection("messages").stream():
-            doc.reference.delete()
-        session_ref.update({"last_updated": now_iso()})
-        return create_response({"success": True, "message": "Chat cleared successfully"})
-    except Exception as e:
-        return create_response({"error": f"Failed to clear chat: {str(e)}"}, 500)
-
-# --- Admin routes ---
-@app.route("/api/admin/users", methods=["GET"])
-@jwt_required
-@admin_required
-def get_all_users():
-    users = []
-    for doc in db.collection("users").stream():
-        u = doc.to_dict(); u["id"]=doc.id; u.pop("password_hash",None)
-        users.append(u)
-    return create_response({"users": users})
-
-@app.route("/api/admin/users/<user_id>/toggle-admin", methods=["POST"])
-@jwt_required
-@admin_required
-def toggle_admin(user_id):
-    ref = db.collection("users").document(user_id)
-    doc = ref.get()
-    if not doc.exists: return create_response({"error":"User not found"},404)
-    new_status = not doc.to_dict().get("is_admin",False)
-    ref.update({"is_admin": new_status})
-    return create_response({"success":True, "message": f"User {'promoted' if new_status else 'demoted'} admin"})
-
-@app.route("/api/admin/users/<user_id>/toggle-active", methods=["POST"])
-@jwt_required
-@admin_required
-def toggle_active(user_id):
-    ref = db.collection("users").document(user_id)
-    doc = ref.get()
-    if not doc.exists: return create_response({"error":"User not found"},404)
-    new_status = not doc.to_dict().get("is_active",True)
-    ref.update({"is_active": new_status})
-    return create_response({"success":True, "message": f"User {'activated' if new_status else 'deactivated'}"})
-
-# --- Serve React frontend ---
-@app.route("/", defaults={"path": ""})
+# --- React frontend ---
+@app.route("/", defaults={"path":""})
 @app.route("/<path:path>")
 def catch_all(path):
-    if path.startswith("api/"):
-        return jsonify({"error": "API endpoint not found"}), 404
+    if path.startswith("api/"): return jsonify({"error":"API endpoint not found"}),404
     return send_file(os.path.join(app.static_folder, "index.html"))
 
 @app.errorhandler(404)
 def handle_404(e):
-    # If the URL starts with /api/, return JSON
-    if request.path.startswith("/api/"):
-        return jsonify({"error": "API endpoint not found"}), 404
-    # Otherwise, serve React index.html
+    if request.path.startswith("/api/"): return jsonify({"error":"API endpoint not found"}),404
     return send_file(os.path.join(app.static_folder, "index.html"))
-
 
 # --- Health ---
 @app.route("/health", methods=["GET"])
