@@ -3088,6 +3088,26 @@ def new_session():
 def get_sessions():
     return create_response(get_cached_sessions(request.user_id))
 
+@app.route("/api/rename_session", methods=["POST"])
+@jwt_required
+def rename_session():
+    data = request.json or {}
+    session_id = data.get("sessionId")
+    new_title = data.get("title", "").strip()
+    
+    if not session_id or not new_title:
+        return create_response({"error": "sessionId and title required"}, 400)
+    
+    user_id = request.user_id
+    session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+    
+    try:
+        session_ref.update({"title": new_title, "last_updated": now_iso()})
+        if user_id in sessions_cache: del sessions_cache[user_id]
+        return create_response({"success": True, "message": "Session renamed successfully"})
+    except Exception as e:
+        return create_response({"error": f"Failed to rename session: {str(e)}"}, 500)
+
 @app.route("/api/get_messages", methods=["GET"])
 @jwt_required
 def get_messages():
@@ -3095,22 +3115,30 @@ def get_messages():
     if not session_id: return create_response({"error":"sessionId required"},400)
     return create_response(get_cached_messages(request.user_id, session_id))
 
-@app.route("/api/clear_chat", methods=["POST"])
+@app.route("/api/delete_session", methods=["DELETE"])
 @jwt_required
-def api_clear_chat():
-    data = request.json or {}
-    session_id = data.get("sessionId")
-    if not session_id: return create_response({"error":"sessionId required"},400)
+def delete_session():
+    session_id = request.args.get("sessionId")
+    if not session_id:
+        return create_response({"error":"sessionId required"},400)
+
     user_id = request.user_id
+    session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+
     try:
-        session_ref = db.collection("users").document(user_id).collection("sessions").document(session_id)
+        # Delete all messages in the session first
         batch_delete_collection(session_ref.collection("messages"))
-        session_ref.update({"last_updated": now_iso(), "title": "New Chat"})
+        # Delete the session itself
+        session_ref.delete()
+
+        # Clear caches
         key = f"{user_id}:{session_id}"
         if key in messages_cache: del messages_cache[key]
-        return create_response({"success": True, "message": "Chat cleared successfully"})
+        if user_id in sessions_cache: del sessions_cache[user_id]
+
+        return create_response({"success": True, "message": "Session deleted successfully"})
     except Exception as e:
-        return create_response({"error": f"Failed to clear chat: {str(e)}"},500)
+        return create_response({"error": f"Failed to delete session: {str(e)}"},500)
 
 # --- Streaming chat (optimized) ---
 @app.route('/api/chat/stream', methods=['POST','OPTIONS'])
